@@ -143,6 +143,7 @@ fn inner_main() -> anyhow::Result<()> {
    });
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
    let default_panic_hook = std::panic::take_hook();
    std::panic::set_hook(Box::new(move |panic_info| {
@@ -177,6 +178,26 @@ fn main() {
             .set_type(MessageType::Error)
             .show_alert()
             .unwrap();
+      }
+   }
+}
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+   use wasm_bindgen::prelude::*;
+
+   pub fn set_panic_hook() {
+      console_error_panic_hook::set_once();
+   }
+
+   #[wasm_bindgen]
+   pub fn start() {
+      use log::Level;
+      console_log::init_with_level(Level::Debug);
+      set_panic_hook();
+
+      if let Err(_) = super::inner_main() {
+         let window = web_sys::window().unwrap();
+         window.alert_with_message("error.").unwrap();
       }
    }
 }
