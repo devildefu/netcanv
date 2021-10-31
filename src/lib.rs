@@ -134,3 +134,24 @@ fn main() -> Result<(), Box<dyn Error>> {
       }
    });
 }
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+   use wasm_bindgen::prelude::*;
+
+   pub fn set_panic_hook() {
+      console_error_panic_hook::set_once();
+   }
+
+   #[wasm_bindgen]
+   pub fn start() {
+      use log::Level;
+      console_log::init_with_level(Level::Debug);
+      set_panic_hook();
+      
+      if let Err(_) = super::main() {
+         let window = web_sys::window().unwrap();
+         window.alert_with_message("error.").unwrap();
+      }
+   }
+}

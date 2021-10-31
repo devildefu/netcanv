@@ -6,10 +6,7 @@
 use std::mem::size_of;
 use std::rc::Rc;
 
-use glow::{
-   HasContext, NativeBuffer, NativeProgram, NativeShader, NativeTexture, NativeUniformLocation,
-   NativeVertexArray,
-};
+use glow::{Buffer, HasContext, Program, Shader, Texture, UniformLocation, VertexArray};
 use memoffset::offset_of;
 use netcanv_renderer::paws::{
    point, vector, Alignment, Color, LineCap, Point, Rect, Renderer, Vector,
@@ -49,8 +46,8 @@ impl Vertex {
 }
 
 struct Uniforms {
-   projection: NativeUniformLocation,
-   the_texture: NativeUniformLocation,
+   projection: UniformLocation,
+   the_texture: UniformLocation,
 }
 
 #[derive(Clone, Copy)]
@@ -61,19 +58,19 @@ struct Transform {
 
 pub(crate) struct RenderState {
    gl: Rc<glow::Context>,
-   vao: NativeVertexArray,
-   vbo: NativeBuffer,
+   vao: VertexArray,
+   vbo: Buffer,
    vbo_size: usize,
-   ebo: NativeBuffer,
+   ebo: Buffer,
    ebo_size: usize,
-   program: NativeProgram,
+   program: Program,
    uniforms: Uniforms,
-   null_texture: NativeTexture,
+   null_texture: Texture,
    stack: Vec<Transform>,
 }
 
 impl RenderState {
-   fn create_vao(gl: &glow::Context, vbo: NativeBuffer, ebo: NativeBuffer) -> NativeVertexArray {
+   fn create_vao(gl: &glow::Context, vbo: Buffer, ebo: Buffer) -> VertexArray {
       unsafe {
          let vao = gl.create_vertex_array().unwrap();
          gl.bind_vertex_array(Some(vao));
@@ -111,7 +108,7 @@ impl RenderState {
       }
    }
 
-   fn create_vbo_and_ebo(gl: &glow::Context) -> (NativeBuffer, NativeBuffer) {
+   fn create_vbo_and_ebo(gl: &glow::Context) -> (Buffer, Buffer) {
       unsafe {
          let vbo = gl.create_buffer().unwrap();
          let ebo = gl.create_buffer().unwrap();
@@ -121,7 +118,7 @@ impl RenderState {
       }
    }
 
-   fn compile_shader(gl: &glow::Context, kind: u32, source: &str) -> Result<NativeShader, String> {
+   fn compile_shader(gl: &glow::Context, kind: u32, source: &str) -> Result<Shader, String> {
       unsafe {
          let shader = gl.create_shader(kind)?;
          gl.shader_source(shader, source);
@@ -134,9 +131,8 @@ impl RenderState {
       }
    }
 
-   fn create_program(gl: &glow::Context) -> (NativeProgram, Uniforms) {
-      const VERTEX_SHADER: &str = r#"
-         #version 300 es
+   fn create_program(gl: &glow::Context) -> (Program, Uniforms) {
+      const VERTEX_SHADER: &str = r#"#version 300 es
 
          precision mediump float;
 
@@ -157,8 +153,7 @@ impl RenderState {
             vertex_color = color;
          }
       "#;
-      const FRAGMENT_SHADER: &str = r#"
-         #version 300 es
+      const FRAGMENT_SHADER: &str = r#"#version 300 es
 
          precision mediump float;
 
@@ -204,7 +199,7 @@ impl RenderState {
       }
    }
 
-   fn create_null_texture(gl: &glow::Context) -> NativeTexture {
+   fn create_null_texture(gl: &glow::Context) -> Texture {
       unsafe {
          let texture = gl.create_texture().unwrap();
          gl.bind_texture(glow::TEXTURE_2D, Some(texture));

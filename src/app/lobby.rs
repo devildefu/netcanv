@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use native_dialog::FileDialog;
+// use native_dialog::FileDialog;
 use netcanv_protocol::matchmaker;
 use netcanv_renderer::paws::{vector, AlignH, AlignV, Layout};
 use netcanv_renderer::{Font, RenderBackend};
@@ -265,6 +265,7 @@ impl State {
          }
          ui.space(8.0);
          if Button::with_text(ui, input, button, "from File").clicked() {
+            /*
             match FileDialog::new()
                .set_filename("canvas.png")
                .add_filter("Supported image files", &["png", "jpg", "jpeg", "jfif"])
@@ -278,6 +279,8 @@ impl State {
                Err(error) => self.status = Status::from(error),
                _ => (),
             }
+            */
+            todo!();
          }
          ui.pop();
 

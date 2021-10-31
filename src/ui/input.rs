@@ -1,6 +1,6 @@
 //! Simplified input handling facility.
 
-use std::time::Instant;
+use instant::Instant;
 
 use netcanv_renderer::paws::{vector, Point, Vector};
 use winit::dpi::PhysicalPosition;

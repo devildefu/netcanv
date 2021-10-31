@@ -6,8 +6,15 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.40"
 winit = "0.24.0"
-glutin = "0.26.0"
 glow = "0.11.0"
 memoffset = "0.6.4"
 
 netcanv-renderer = { path = "../netcanv-renderer" }
+
+[target.'cfg(not(any(target_arch = "wasm32")))'.dependencies]
+glutin = "0.26.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3.55", features = ["HtmlCanvasElement", "WebGl2RenderingContext", "Window"] }
+wasm-bindgen = "0.2.78"
+console_error_panic_hook = { version = "0.1.6", optional = true }

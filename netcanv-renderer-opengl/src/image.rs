@@ -3,13 +3,13 @@ use std::{
    rc::Rc,
 };
 
-use glow::{HasContext, NativeTexture};
+use glow::{HasContext, Texture};
 use netcanv_renderer::paws::Color;
 
 pub(crate) enum ImageState {
    Queued(Vec<u8>),
    Uploading,
-   Ready(Rc<glow::Context>, NativeTexture),
+   Ready(Rc<glow::Context>, Texture),
 }
 
 impl Drop for ImageState {
@@ -31,7 +31,7 @@ pub struct Image {
 }
 
 impl Image {
-   pub(crate) fn upload(&self, gl: &Rc<glow::Context>) -> NativeTexture {
+   pub(crate) fn upload(&self, gl: &Rc<glow::Context>) -> Texture {
       let state = self.state.replace(ImageState::Uploading);
       match &state {
          ImageState::Queued(pixels) => unsafe {
