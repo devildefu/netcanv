@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use native_dialog::FileDialog;
+// use native_dialog::FileDialog;
 use netcanv_renderer::paws::{
    point, vector, AlignH, AlignV, Color, Layout, Rect, Renderer, Vector,
 };
@@ -467,6 +467,7 @@ impl State {
       )
       .clicked()
       {
+         /*
          match FileDialog::new()
             .set_filename("canvas.png")
             .add_filter("PNG image", &["png"])
@@ -479,6 +480,8 @@ impl State {
             Err(error) => log!(self.log, "Error while selecting file: {}", error),
             _ => (),
          }
+         */
+         todo!()
       }
       if self.peer.is_host() {
          // The room ID itself

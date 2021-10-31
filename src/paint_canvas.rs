@@ -179,6 +179,8 @@ impl Chunk {
    ///
    /// Semantics are similar to [`Chunk::png_data`].
    fn webp_data(&mut self, sub: usize) -> Option<&[u8]> {
+      todo!()
+      /*
       if self.webp_data[sub].is_none() {
          eprintln!("  webp data doesn't exist, encoding");
          let chunk_image = self.download_image();
@@ -197,6 +199,7 @@ impl Chunk {
          }
       }
       self.webp_data[sub].as_deref()
+      */
    }
 
    /// Returns the image file data of the given sub-chunk within this master chunk, in a format
@@ -252,6 +255,8 @@ impl Chunk {
 
    /// Decodes a WebP file into the given sub-chunk.
    fn decode_webp_data(&mut self, sub: usize, data: &[u8]) -> anyhow::Result<()> {
+      todo!()
+      /*
       let image = match webp::Decoder::new(data).decode() {
          Some(image) => image.to_image(),
          None => anyhow::bail!("got non-webp image"),
@@ -263,6 +268,7 @@ impl Chunk {
          self.non_empty_subs[sub] = true;
       }
       Ok(())
+      */
    }
 
    /// Decodes a PNG or WebP file into the given sub-chunk, depending on what's actually stored in
