@@ -1,3 +1,4 @@
+use glow::HasContext;
 use netcanv_renderer::paws::{vector, Color, Vector};
 
 pub fn normalized_color(color: Color) -> (f32, f32, f32, f32) {
@@ -36,5 +37,18 @@ impl VectorMath for Vector {
 
    fn perpendicular_ccw(self) -> Self {
       vector(self.y, -self.x)
+   }
+}
+
+pub trait GlUtilities {
+   unsafe fn texture_swizzle_mask(&self, target: u32, mask: &[u32; 4]);
+}
+
+impl GlUtilities for glow::Context {
+   unsafe fn texture_swizzle_mask(&self, target: u32, mask: &[u32; 4]) {
+      self.tex_parameter_i32(target, glow::TEXTURE_SWIZZLE_R, mask[0] as i32);
+      self.tex_parameter_i32(target, glow::TEXTURE_SWIZZLE_G, mask[1] as i32);
+      self.tex_parameter_i32(target, glow::TEXTURE_SWIZZLE_B, mask[2] as i32);
+      self.tex_parameter_i32(target, glow::TEXTURE_SWIZZLE_A, mask[3] as i32);
    }
 }

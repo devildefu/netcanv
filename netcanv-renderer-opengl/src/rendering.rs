@@ -13,7 +13,7 @@ use netcanv_renderer::paws::{
 };
 use netcanv_renderer::{BlendMode, Image as ImageTrait, RenderBackend};
 
-use crate::common::{normalized_color, VectorMath};
+use crate::common::{normalized_color, GlUtilities, VectorMath};
 use crate::font::Font;
 use crate::framebuffer::Framebuffer;
 use crate::image::Image;
@@ -459,19 +459,12 @@ impl RenderBackend for OpenGlBackend {
       unsafe {
          self.gl.active_texture(glow::TEXTURE0);
          self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-         if image.color.is_some() {
-            let swizzle_mask = [
-               glow::ONE as i32,
-               glow::ONE as i32,
-               glow::ONE as i32,
-               glow::ALPHA as i32,
-            ];
-            self.gl.tex_parameter_i32_slice(
-               glow::TEXTURE_2D,
-               glow::TEXTURE_SWIZZLE_RGBA,
-               &swizzle_mask,
-            );
-         }
+         let swizzle_mask = if image.color.is_some() {
+            [glow::ONE, glow::ONE, glow::ONE, glow::ALPHA]
+         } else {
+            [glow::RED, glow::GREEN, glow::BLUE, glow::ALPHA]
+         };
+         self.gl.texture_swizzle_mask(glow::TEXTURE_2D, &swizzle_mask);
          self.state.draw(&vertices, &indices);
          self.state.bind_null_texture();
       }

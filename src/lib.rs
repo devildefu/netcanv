@@ -148,7 +148,7 @@ mod wasm {
       use log::Level;
       console_log::init_with_level(Level::Debug);
       set_panic_hook();
-      
+
       if let Err(_) = super::main() {
          let window = web_sys::window().unwrap();
          window.alert_with_message("error.").unwrap();
