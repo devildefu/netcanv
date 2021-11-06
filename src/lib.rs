@@ -39,6 +39,8 @@ use native_dialog::{MessageDialog, MessageType};
 use netcanv_renderer::paws::{vector, Layout};
 use nysa::global as bus;
 
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::UiRenderFrame;
 #[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::UiRenderFrame;
 #[cfg(feature = "renderer-skia")]

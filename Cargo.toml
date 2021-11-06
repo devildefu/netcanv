@@ -7,6 +7,7 @@ edition = "2018"
 [workspace]
 members = [
    "netcanv-renderer",
+   "netcanv-renderer-canvas",
    "netcanv-renderer-opengl",
    "netcanv-renderer-skia",
    "netcanv-matchmaker",
@@ -15,9 +16,10 @@ members = [
 ]
 
 [features]
-default = ["renderer-opengl"]
+default = ["renderer-canvas"]
 renderer-skia = ["netcanv-renderer-skia"]
 renderer-opengl = ["netcanv-renderer-opengl"]
+renderer-canvas = ["netcanv-renderer-canvas"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -30,7 +32,7 @@ heapless = { version = "0.7.7", default-features = false }
 lazy_static = "1.4.0"
 
 # Windowing and graphics
-winit = { version = "0.24.0", features = ["web-sys"] }
+winit = { version = "0.25.0", features = ["web-sys"] }
 image = { version = "0.23.14", default-features = false, features = ["png", "jpeg"] }
 usvg = { version = "0.14.0", default-features = false }
 resvg = { version = "0.14.0", default-features = false }
@@ -59,6 +61,7 @@ arboard = "2.0.1"
 netcanv-renderer = { path = "netcanv-renderer" }
 netcanv-renderer-skia = { path = "netcanv-renderer-skia", optional = true }
 netcanv-renderer-opengl = { path = "netcanv-renderer-opengl", optional = true }
+netcanv-renderer-canvas = { path = "netcanv-renderer-canvas", optional = true }
 netcanv-protocol = { path = "netcanv-protocol" }
 
 instant = "0.1.12"

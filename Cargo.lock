@@ -1890,6 +1890,7 @@ dependencies = [
  "native-dialog",
  "netcanv-protocol",
  "netcanv-renderer",
+ "netcanv-renderer-canvas",
  "netcanv-renderer-opengl",
  "netcanv-renderer-skia",
  "nysa",
@@ -1902,7 +1903,7 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "webp",
- "winit 0.24.0",
+ "winit 0.25.0",
 ]
 
 [[package]]
@@ -1930,6 +1931,22 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "paws",
+ "winit 0.25.0",
+]
+
+[[package]]
+name = "netcanv-renderer-canvas"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "js-sys",
+ "log",
+ "netcanv-renderer",
+ "once_cell",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "winit 0.25.0",
 ]
 
 [[package]]
@@ -2160,9 +2177,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.7.2"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
+checksum = "692fcb63b64b1758029e0a96ee63e049ce8c5948587f2f7208df04625e5f6b56"
 
 [[package]]
 name = "opaque-debug"
@@ -3293,9 +3310,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.21"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e67a5806118af01f0d9045915676b22aaebecf4178ae7021bc171dab0b897ab"
+checksum = "8e8d7523cb1f2a4c96c1317ca690031b714a51cc14e05f712446691f413f5d39"
 dependencies = [
  "cfg-if 1.0.0",
  "js-sys",
@@ -3576,6 +3593,38 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "raw-window-handle",
+ "smithay-client-toolkit",
+ "wayland-client",
+ "winapi 0.3.9",
+ "x11-dl",
+]
+
+[[package]]
+name = "winit"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79610794594d5e86be473ef7763f604f2159cbac8c94debd00df8fb41e86c2f8"
+dependencies = [
+ "bitflags",
+ "cocoa 0.24.0",
+ "core-foundation 0.9.1",
+ "core-graphics 0.22.2",
+ "core-video-sys",
+ "dispatch",
+ "instant",
+ "lazy_static",
+ "libc",
+ "log",
+ "mio 0.7.14",
+ "mio-misc",
+ "ndk 0.3.0",
+ "ndk-glue 0.3.0",
+ "ndk-sys",
+ "objc",
+ "parking_lot",
+ "percent-encoding",
+ "raw-window-handle",
+ "scopeguard",
  "smithay-client-toolkit",
  "wasm-bindgen",
  "wayland-client",
