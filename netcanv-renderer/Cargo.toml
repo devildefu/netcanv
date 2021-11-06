@@ -5,5 +5,5 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.40"
-winit = "0.24.0"
+winit = "0.25.0"
 paws = "0.2.0"

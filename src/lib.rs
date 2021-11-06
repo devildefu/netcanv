@@ -37,6 +37,8 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::platform::unix::*;
 use winit::window::WindowBuilder;
 
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::UiRenderFrame;
 #[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::UiRenderFrame;
 #[cfg(feature = "renderer-skia")]
