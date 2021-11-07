@@ -60,7 +60,7 @@ use app::*;
 use assets::*;
 use ui::{Input, Ui};
 
-fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<(), Box<dyn Error>> {
    // Set up the winit event loop and open the window.
    let event_loop = EventLoop::new();
    let window_builder = {

@@ -1,7 +1,9 @@
 use std::{
    cell::RefCell,
+   collections::HashMap,
    rc::Rc,
    sync::atomic::{AtomicUsize, Ordering},
+   sync::Mutex,
 };
 
 use js_sys::{ArrayBuffer, Uint8Array};
@@ -14,7 +16,7 @@ use netcanv_renderer::{
 use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
-use web_sys::{CanvasRenderingContext2d, FontFace, ImageData};
+use web_sys::{CanvasRenderingContext2d, FontFace, HtmlImageElement, ImageData};
 use winit::{
    event_loop::EventLoop,
    platform::web::WindowExtWebSys,
@@ -127,27 +129,47 @@ impl netcanv_renderer::Font for Font {
    }
 }
 
+#[derive(Clone)]
 pub struct Image {
-   image_data: ImageData,
+   width: u32,
+   height: u32,
    data: Vec<u8>,
 }
 
 impl Image {
-   /// Get a reference to the image's image data.
-   pub fn image_data(&self) -> &ImageData {
-      &self.image_data
+   pub fn build(&self) -> HtmlImageElement {
+      use image::png::PngEncoder;
+
+      let mut data: Vec<u8> = vec![];
+      let encoder = PngEncoder::new(&mut data);
+
+      // Encode pixel data to png, so we can use encode it to base64 later
+      encoder.encode(&self.data, self.width, self.height, image::ColorType::Rgba8);
+
+      let image = HtmlImageElement::new_with_width_and_height(self.width, self.height).unwrap();
+
+      // Encode png to base64 and set image's src to it
+      // Browsers are weird I think
+      let base64 = format!("data:image/png;base64,{}", base64::encode(&data));
+      image.set_src(&base64);
+
+      image
+   }
+
+   /// Get a reference to the image's image.
+   pub fn image(&self) -> &HtmlImageElement {
+      // &self.image.borrow()
+      todo!()
    }
 }
 
 impl netcanv_renderer::Image for Image {
    fn from_rgba(width: u32, height: u32, pixel_data: &[u8]) -> Self {
-      let data = pixel_data.to_vec();
-
-      let image_data =
-         ImageData::new_with_u8_clamped_array_and_sh(Clamped(data.as_slice()), width, height)
-            .unwrap();
-
-      Self { data, image_data }
+      Self {
+         width,
+         height,
+         data: pixel_data.to_vec(),
+      }
    }
 
    fn colorized(&self, color: netcanv_renderer::paws::Color) -> Self {
@@ -160,18 +182,15 @@ impl netcanv_renderer::Image for Image {
          pixel[3] = ((pixel[3] as f32 / 255.0) * (color.a as f32 / 255.0) * 255.0) as u8;
       }
 
-      let image_data = ImageData::new_with_u8_clamped_array_and_sh(
-         Clamped(data.as_slice()),
-         self.image_data.width(),
-         self.image_data.height(),
-      )
-      .unwrap();
-
-      Self { data, image_data }
+      Self {
+         width: self.width,
+         height: self.height,
+         data,
+      }
    }
 
    fn size(&self) -> (u32, u32) {
-      (self.image_data.width(), self.image_data.height())
+      (self.width, self.height)
    }
 }
 
@@ -194,6 +213,17 @@ impl netcanv_renderer::Framebuffer for Framebuffer {
 pub struct CanvasBackend {
    context: Rc<web_sys::CanvasRenderingContext2d>,
    window: winit::window::Window,
+   cache: HashMap<Vec<u8>, HtmlImageElement>,
+}
+
+fn color_to_jsvalue(color: netcanv_renderer::paws::Color) -> JsValue {
+   JsValue::from_str(&format!(
+      "rgba({}, {}, {}, {})",
+      color.r,
+      color.g,
+      color.b,
+      color.a as f32 / 255.0
+   ))
 }
 
 impl CanvasBackend {
@@ -217,6 +247,7 @@ impl CanvasBackend {
       Ok(Self {
          context: Rc::new(context),
          window: winit_window,
+         cache: HashMap::new(),
       })
    }
 
@@ -232,18 +263,24 @@ impl CanvasBackend {
       fonts.check(&format!("12px {}", name)).unwrap()
    }
 
-   pub(crate) fn set_color(&mut self, color: netcanv_renderer::paws::Color) {
-      self.context.set_fill_style(&JsValue::from_str(&format!(
-         "rgb({}, {}, {})",
-         color.r, color.g, color.b
-      )));
+   pub(crate) fn set_stroke_color(&mut self, color: netcanv_renderer::paws::Color) {
+      self.context.set_stroke_style(&color_to_jsvalue(color));
+   }
+
+   pub(crate) fn set_fill_color(&mut self, color: netcanv_renderer::paws::Color) {
+      self.context.set_fill_style(&color_to_jsvalue(color));
    }
 
    pub(crate) fn draw_image(&mut self, image: &Image, position: netcanv_renderer::paws::Point) {
-      if let Err(e) =
-         self.context.put_image_data(image.image_data(), position.x as _, position.y as _)
-      {
-         log::error!("jeblo");
+      match self.cache.get(&image.data) {
+         Some(i) => {
+            self.context.draw_image_with_html_image_element(i, position.x as _, position.y as _);
+         }
+         None => {
+            let i = image.build();
+            self.context.draw_image_with_html_image_element(&i, position.x as _, position.y as _);
+            self.cache.insert(image.data.clone(), i);
+         }
       }
    }
 }
@@ -280,9 +317,16 @@ impl Renderer for CanvasBackend {
       &mut self,
       rect: netcanv_renderer::paws::Rect,
       color: netcanv_renderer::paws::Color,
-      _radius: f32,
+      radius: f32,
    ) {
-      self.set_color(color);
+      self.push();
+
+      self.set_fill_color(color);
+
+      if radius > 0.0f32 {
+         self.context.set_line_join("round");
+         self.context.set_line_width(radius as _);
+      }
 
       self.context.fill_rect(
          rect.x() as _,
@@ -290,31 +334,47 @@ impl Renderer for CanvasBackend {
          rect.width() as _,
          rect.height() as _,
       );
+
+      self.pop();
    }
 
    fn outline(
       &mut self,
       rect: netcanv_renderer::paws::Rect,
       color: netcanv_renderer::paws::Color,
-      _radius: f32,
+      radius: f32,
       thickness: f32,
    ) {
-      self.set_color(color);
+      self.push();
+
+      self.set_stroke_color(color);
       self.context.set_line_width(thickness as _);
 
-      let x = if rect.x() % 2.0f32 > 0.95f32 {
-         rect.x() + 0.5f32
-      } else {
-         rect.x()
-      };
+      if thickness % 2.0 > 0.95 {
+         self.context.translate(0.5, 0.5);
+      }
 
-      let y = if rect.y() % 2.0f32 > 0.95f32 {
-         rect.y() + 0.5f32
-      } else {
-         rect.y()
-      };
+      let x = rect.x() as f64;
+      let y = rect.y() as f64;
+      let width = rect.width() as f64;
+      let height = rect.height() as f64;
+      let radius = radius as f64;
+      let ctx = &self.context;
 
-      self.context.stroke_rect(x as _, y as _, rect.width() as _, rect.height() as _);
+      ctx.begin_path();
+      ctx.move_to(x + radius, y);
+      ctx.line_to(x + width - radius, y);
+      ctx.quadratic_curve_to(x + width, y, x + width, y + radius);
+      ctx.line_to(x + width, y + height - radius);
+      ctx.quadratic_curve_to(x + width, y + height, x + width - radius, y + height);
+      ctx.line_to(x + radius, y + height);
+      ctx.quadratic_curve_to(x, y + height, x, y + height - radius);
+      ctx.line_to(x, y + radius);
+      ctx.quadratic_curve_to(x, y, x + radius, y);
+      ctx.close_path();
+      ctx.stroke();
+
+      self.pop();
    }
 
    fn line(
@@ -327,7 +387,9 @@ impl Renderer for CanvasBackend {
    ) {
       use netcanv_renderer::paws::LineCap;
 
-      self.set_color(color);
+      self.push();
+
+      self.set_fill_color(color);
       self.context.set_line_width(thickness as _);
       self.context.set_line_cap(match cap {
          LineCap::Butt => "butt",
@@ -337,6 +399,8 @@ impl Renderer for CanvasBackend {
 
       self.context.move_to(a.x as _, a.y as _);
       self.context.line_to(b.x as _, b.y as _);
+
+      self.pop();
    }
 
    fn text(
@@ -351,7 +415,9 @@ impl Renderer for CanvasBackend {
          *font.context.borrow_mut() = Some(Rc::clone(&self.context));
       }
 
-      self.set_color(color);
+      self.push();
+
+      self.set_fill_color(color);
 
       let (align, x) = match alignment {
          (AlignH::Left, _) => ("left", rect.left()),
@@ -372,6 +438,8 @@ impl Renderer for CanvasBackend {
 
       let metrics = self.context.measure_text(text).unwrap();
 
+      self.pop();
+
       metrics.width() as _
    }
 }
@@ -391,8 +459,13 @@ impl RenderBackend for CanvasBackend {
    fn clear(&mut self, color: netcanv_renderer::paws::Color) {
       let width = self.window.inner_size().width;
       let height = self.window.inner_size().height;
-      self.set_color(color);
+
+      self.push();
+
+      self.set_fill_color(color);
       self.context.fill_rect(0.0f64, 0.0f64, width as _, height as _);
+
+      self.pop();
    }
 
    fn image(&mut self, position: netcanv_renderer::paws::Point, image: &Self::Image) {

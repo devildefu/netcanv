@@ -1442,6 +1442,8 @@ name = "netcanv-renderer-canvas"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
+ "image",
  "js-sys",
  "log",
  "netcanv-renderer",
