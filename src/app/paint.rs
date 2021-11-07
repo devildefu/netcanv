@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use native_dialog::FileDialog;
+// use native_dialog::FileDialog;
 use netcanv_renderer::paws::{
    point, vector, AlignH, AlignV, Color, Layout, Rect, Renderer, Vector,
 };
@@ -465,18 +465,18 @@ impl State {
       )
       .clicked()
       {
-         match FileDialog::new()
-            .set_filename("canvas.png")
-            .add_filter("PNG image", &["png"])
-            .add_filter("NetCanv canvas", &["netcanv", "toml"])
-            .show_save_single_file()
-         {
-            Ok(Some(path)) => {
-               self.save_to_file = Some(path);
-            }
-            Err(error) => log!(self.log, "Error while selecting file: {}", error),
-            _ => (),
-         }
+         // match FileDialog::new()
+         //    .set_filename("canvas.png")
+         //    .add_filter("PNG image", &["png"])
+         //    .add_filter("NetCanv canvas", &["netcanv", "toml"])
+         //    .show_save_single_file()
+         // {
+         //    Ok(Some(path)) => {
+         //       self.save_to_file = Some(path);
+         //    }
+         //    Err(error) => log!(self.log, "Error while selecting file: {}", error),
+         //    _ => (),
+         // }
       }
       if self.peer.is_host() {
          // The room ID itself

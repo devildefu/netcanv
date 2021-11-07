@@ -233,6 +233,7 @@ pub struct TitlebarColors {
    pub button: Color,
 }
 
+/*
 #[cfg(target_family = "unix")]
 use winit::platform::unix::*;
 
@@ -288,3 +289,4 @@ impl Theme for ColorScheme {
 /// A bus message notifying the main event loop that the color scheme has been switched.
 /// Relevant only on Wayland, where the title bar is drawn by the application.
 pub struct SwitchColorScheme(pub crate::config::ColorScheme);
+*/

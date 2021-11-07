@@ -50,6 +50,7 @@ impl UserConfig {
    /// If the `config.toml` doesn't exist, it's created with values inherited from
    /// `UserConfig::default`.
    pub fn load_or_create() -> anyhow::Result<Self> {
+      /*
       let config_dir = Self::config_dir();
       let config_file = Self::path();
       std::fs::create_dir_all(config_dir)?;
@@ -69,13 +70,18 @@ impl UserConfig {
          };
          Ok(config)
       }
+      */
+      Ok(Self::default())
    }
 
    /// Saves the user configuration to the `config.toml` file.
    pub fn save(&self) -> anyhow::Result<()> {
       // Assumes that `config_dir` was already created in `load_or_create`.
+      /*
       let config_file = Self::path();
       std::fs::write(&config_file, toml::to_string(self)?)?;
+      Ok(())
+      */
       Ok(())
    }
 }

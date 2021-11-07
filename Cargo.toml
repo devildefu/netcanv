@@ -4,6 +4,9 @@ version = "0.4.0"
 authors = ["lqdev <liquidekgaming@gmail.com>"]
 edition = "2018"
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [workspace]
 members = [
    "netcanv-renderer",
@@ -25,8 +28,8 @@ anyhow = "1.0.40"
 heapless = { version = "0.7.7", default-features = false }
 
 # Windowing and graphics
-winit = "0.24.0"
-native-dialog = "0.5.5"
+winit = { git = "https://github.com/Kaiser1989/winit" }
+# native-dialog = "0.5.5"
 image = { version = "0.23.14", default-features = false, features = ["png", "jpeg"] }
 webp = { version = "0.2.0", features = ["img"] }
 usvg = { version = "0.14.0", default-features = false }
@@ -47,6 +50,9 @@ toml = "0.5.8"
 # Clipboard
 copypasta = "0.7.1"
 
+ndk = "0.4.0"
+ndk-glue = "0.4.0"
+
 # Workspace
 netcanv-renderer = { path = "netcanv-renderer" }
 netcanv-renderer-skia = { path = "netcanv-renderer-skia", optional = true }
@@ -55,3 +61,7 @@ netcanv-protocol = { path = "netcanv-protocol" }
 
 [profile.release]
 lto = "fat"
+
+[package.metadata.android]
+build_targets = [ "x86_64-linux-android", "i686-linux-android", "aarch64-linux-android" ]
+apk_name = "netcanv"
