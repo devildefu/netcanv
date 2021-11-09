@@ -6,6 +6,7 @@
 //! older configs. These keys will be added to the user's configuration automatically.
 
 use std::path::PathBuf;
+use std::{fmt, str};
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,26 @@ pub struct LobbyConfig {
 pub enum ColorScheme {
    Light,
    Dark,
+}
+
+// fmt::Display implements to_string() for us
+impl fmt::Display for ColorScheme {
+   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      write!(f, "{:?}", self)
+   }
+}
+
+impl str::FromStr for ColorScheme {
+   type Err = ();
+
+   fn from_str(s: &str) -> Result<ColorScheme, ()> {
+      let color = s.to_lowercase();
+      match color.as_str() {
+         "light" => Ok(Self::Light),
+         "dark" => Ok(Self::Dark),
+         _ => Err(()),
+      }
+   }
 }
 
 /// The position of the toolbar.
@@ -76,8 +97,8 @@ impl UserConfig {
    ///
    /// If the `config.toml` doesn't exist, it's created with values inherited from
    /// `UserConfig::default`.
+   #[cfg(not(target_arch = "wasm32"))]
    pub fn load_or_create() -> anyhow::Result<Self> {
-      /*
       let config_dir = Self::config_dir();
       let config_file = Self::path();
       std::fs::create_dir_all(config_dir)?;
@@ -100,15 +121,59 @@ impl UserConfig {
          config.save()?;
          Ok(config)
       }
-      */
-      Ok(Self::default())
+   }
+
+   #[cfg(target_arch = "wasm32")]
+   pub fn load_or_create() -> anyhow::Result<Self> {
+      let window = web_sys::window().unwrap();
+      let storage = window.local_storage().unwrap().unwrap();
+
+      let mut config = Self::default();
+      config.lobby.nickname = match storage.get_item("nickname").unwrap() {
+         Some(i) => i,
+         None => {
+            storage.set_item("nickname", &config.lobby.nickname).unwrap();
+            config.lobby.nickname
+         }
+      };
+
+      config.lobby.matchmaker = match storage.get_item("matchmaker").unwrap() {
+         Some(i) => i,
+         None => {
+            storage.set_item("matchmaker", &config.lobby.matchmaker).unwrap();
+            config.lobby.matchmaker
+         }
+      };
+
+      config.ui.color_scheme = match storage.get_item("color_scheme").unwrap() {
+         Some(i) => i.parse::<ColorScheme>().unwrap(),
+         None => {
+            storage.set_item("color_scheme", &config.ui.color_scheme.to_string()).unwrap();
+            config.ui.color_scheme
+         }
+      };
+
+      Ok(config)
    }
 
    /// Saves the user configuration to the `config.toml` file.
+   #[cfg(not(target_arch = "wasm32"))]
    pub fn save(&self) -> anyhow::Result<()> {
       // Assumes that `config_dir` was already created in `load_or_create`.
       let config_file = Self::path();
       std::fs::write(&config_file, toml::to_string(self)?)?;
+      Ok(())
+   }
+
+   #[cfg(target_arch = "wasm32")]
+   pub fn save(&self) -> anyhow::Result<()> {
+      let window = web_sys::window().unwrap();
+      let storage = window.local_storage().unwrap().unwrap();
+
+      storage.set_item("nickname", &self.lobby.nickname).unwrap();
+      storage.set_item("matchmaker", &self.lobby.matchmaker).unwrap();
+      storage.set_item("color_scheme", &self.ui.color_scheme.to_string()).unwrap();
+
       Ok(())
    }
 }
