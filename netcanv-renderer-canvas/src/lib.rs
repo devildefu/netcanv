@@ -13,6 +13,11 @@ mod framebuffer;
 mod image;
 mod rendering;
 
+pub use crate::font::*;
+pub use crate::framebuffer::*;
+pub use crate::image::*;
+pub use crate::rendering::*;
+
 pub struct CanvasBackend {
    context: Rc<web_sys::CanvasRenderingContext2d>,
    window: winit::window::Window,
