@@ -158,9 +158,10 @@ mod wasm {
       console_log::init_with_level(Level::Debug);
       set_panic_hook();
 
-      if let Err(_) = super::main() {
+      if let Err(e) = super::main() {
          let window = web_sys::window().unwrap();
-         window.alert_with_message("error.").unwrap();
+         let error = format!("{:?}", e);
+         window.alert_with_message(&error).unwrap();
       }
    }
 }
