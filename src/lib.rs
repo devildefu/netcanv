@@ -35,7 +35,7 @@ use crate::backend::winit::platform::unix::*;
 use crate::backend::winit::window::WindowBuilder;
 use backend::Backend;
 use config::UserConfig;
-use native_dialog::{MessageDialog, MessageType};
+// use native_dialog::{MessageDialog, MessageType};
 use netcanv_renderer::paws::{vector, Layout};
 use nysa::global as bus;
 
