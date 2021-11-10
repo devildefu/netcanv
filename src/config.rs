@@ -137,8 +137,14 @@ impl UserConfig {
 
          match LocalStorage::get(key) {
             Ok(v) => Ok(v),
-            Err(StorageError::KeyNotFound(_)) => {
+            Err(StorageError::KeyNotFound(e)) => {
                // We haven't found the key, so we need to set it to a default value and return that value
+               LocalStorage::set(key, &value);
+               Ok(value)
+            }
+            Err(StorageError::SerdeError(e)) => {
+               log::info!("Failed to parse {} value, returning default.", key);
+               // For some reason updating localStorage fixes it?
                LocalStorage::set(key, &value);
                Ok(value)
             }
