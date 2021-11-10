@@ -8,3 +8,4 @@
 appimage/out
 appimage/linuxdeploy-*
 node_modules
+dist
