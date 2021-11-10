@@ -1240,13 +1240,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
-name = "gloo-timers"
-version = "0.2.1"
+name = "gloo-storage"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47204a46aaff920a1ea58b11d03dec6f704287d27561724a4631e450654a891f"
+checksum = "1b5057761927af1b1929d02b1f49cf83553dd347a473ee7c8bb08420f2673ffc"
 dependencies = [
- "futures-channel",
- "futures-core",
+ "gloo-utils",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "gloo-utils"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f00ff0fa8a9f48627e10417adf4b1b3a7c25edf51baa654f6b3c219c0fa8435"
+dependencies = [
  "js-sys",
  "wasm-bindgen",
  "web-sys",
@@ -1881,7 +1894,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "directories",
- "futures",
+ "gloo-storage",
  "heapless",
  "image",
  "instant",
@@ -3292,6 +3305,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "632f73e236b219150ea279196e54e610f5dbafa5d61786303d4da54f84e47fce"
 dependencies = [
  "cfg-if 1.0.0",
+ "serde",
+ "serde_json",
  "wasm-bindgen-macro",
 ]
 

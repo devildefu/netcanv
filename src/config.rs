@@ -125,33 +125,32 @@ impl UserConfig {
 
    #[cfg(target_arch = "wasm32")]
    pub fn load_or_create() -> anyhow::Result<Self> {
-      let window = web_sys::window().unwrap();
-      let storage = window.local_storage().unwrap().unwrap();
-
+      use gloo_storage::{errors::StorageError, LocalStorage, Storage};
       let mut config = Self::default();
-      config.lobby.nickname = match storage.get_item("nickname").unwrap() {
-         Some(i) => i,
-         None => {
-            storage.set_item("nickname", &config.lobby.nickname).unwrap();
-            config.lobby.nickname
-         }
-      };
 
-      config.lobby.matchmaker = match storage.get_item("matchmaker").unwrap() {
-         Some(i) => i,
-         None => {
-            storage.set_item("matchmaker", &config.lobby.matchmaker).unwrap();
-            config.lobby.matchmaker
-         }
-      };
+      /// Returns the T that is in localStorage, or if it doesn't find it, sets key to default value and returns it.
+      fn get_or_set<T>(key: impl AsRef<str>, value: T) -> anyhow::Result<T>
+      where
+         T: for<'de> Deserialize<'de> + Serialize,
+      {
+         let key = key.as_ref();
 
-      config.ui.color_scheme = match storage.get_item("color_scheme").unwrap() {
-         Some(i) => i.parse::<ColorScheme>().unwrap(),
-         None => {
-            storage.set_item("color_scheme", &config.ui.color_scheme.to_string()).unwrap();
-            config.ui.color_scheme
+         match LocalStorage::get(key) {
+            Ok(v) => Ok(v),
+            Err(StorageError::KeyNotFound(_)) => {
+               // We haven't found the key, so we need to set it to a default value and return that value
+               LocalStorage::set(key, &value);
+               Ok(value)
+            }
+            // Other errors of no interest to us
+            e => Ok(e?),
          }
-      };
+      }
+
+      // TODO: use serde for this
+      config.lobby.nickname = get_or_set("nickname", config.lobby.nickname)?;
+      config.lobby.matchmaker = get_or_set("matchmaker", config.lobby.matchmaker)?;
+      config.ui.color_scheme = get_or_set("color_scheme", config.ui.color_scheme)?;
 
       Ok(config)
    }
@@ -167,12 +166,12 @@ impl UserConfig {
 
    #[cfg(target_arch = "wasm32")]
    pub fn save(&self) -> anyhow::Result<()> {
-      let window = web_sys::window().unwrap();
-      let storage = window.local_storage().unwrap().unwrap();
+      use gloo_storage::{LocalStorage, Storage};
 
-      storage.set_item("nickname", &self.lobby.nickname).unwrap();
-      storage.set_item("matchmaker", &self.lobby.matchmaker).unwrap();
-      storage.set_item("color_scheme", &self.ui.color_scheme.to_string()).unwrap();
+      // TODO: use serde for this
+      LocalStorage::set("nickname", &self.lobby.nickname);
+      LocalStorage::set("matchmaker", &self.lobby.matchmaker);
+      LocalStorage::set("color_scheme", self.ui.color_scheme);
 
       Ok(())
    }
