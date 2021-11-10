@@ -317,22 +317,6 @@ dependencies = [
 
 [[package]]
 name = "cocoa"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c54201c07dcf3a5ca33fececb8042aed767ee4bfd5a0235a8ceabcda956044b2"
-dependencies = [
- "bitflags",
- "block",
- "cocoa-foundation",
- "core-foundation 0.9.1",
- "core-graphics 0.22.2",
- "foreign-types",
- "libc",
- "objc",
-]
-
-[[package]]
-name = "cocoa"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f63902e9223530efb4e26ccd0cf55ec30d592d3b42e21a28defc42a9586e832"
@@ -932,13 +916,13 @@ dependencies = [
 
 [[package]]
 name = "glutin"
-version = "0.26.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ae1cbb9176b9151c4ce03f012e3cd1c6c18c4be79edeaeb3d99f5d8085c5fa3"
+checksum = "762d6cd2e1b855d99668ebe591cc9058659d85ac39a9a2078000eb122ddba8f0"
 dependencies = [
  "android_glue",
  "cgl",
- "cocoa 0.23.0",
+ "cocoa",
  "core-foundation 0.9.1",
  "glutin_egl_sys",
  "glutin_emscripten_sys",
@@ -946,7 +930,7 @@ dependencies = [
  "glutin_glx_sys",
  "glutin_wgl_sys",
  "lazy_static",
- "libloading 0.6.7",
+ "libloading 0.7.0",
  "log",
  "objc",
  "osmesa-sys",
@@ -954,7 +938,7 @@ dependencies = [
  "wayland-client",
  "wayland-egl",
  "winapi 0.3.9",
- "winit 0.24.0",
+ "winit 0.25.0",
 ]
 
 [[package]]
@@ -1407,7 +1391,7 @@ version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d689b01017db3e350e0e9798d233cca9ad3bf810e7c02b9b55ec06b9ee7dbd8a"
 dependencies = [
- "cocoa 0.24.0",
+ "cocoa",
  "dirs-next",
  "objc",
  "objc-foundation",
@@ -2079,7 +2063,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cd21ed1cdef7f1b1579b972148ba6058b5b545959a14d91ea83c4f0ea9f289b"
 dependencies = [
- "cocoa 0.24.0",
+ "cocoa",
  "core-graphics 0.22.2",
  "objc",
  "raw-window-handle",
@@ -3054,7 +3038,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da4eda6fce0eb84bd0a33e3c8794eb902e1033d0a1d5a31bc4f19b1b4bbff597"
 dependencies = [
  "bitflags",
- "cocoa 0.24.0",
+ "cocoa",
  "core-foundation 0.9.1",
  "core-graphics 0.22.2",
  "core-video-sys",
@@ -3085,7 +3069,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79610794594d5e86be473ef7763f604f2159cbac8c94debd00df8fb41e86c2f8"
 dependencies = [
  "bitflags",
- "cocoa 0.24.0",
+ "cocoa",
  "core-foundation 0.9.1",
  "core-graphics 0.22.2",
  "core-video-sys",
