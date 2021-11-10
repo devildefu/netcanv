@@ -120,7 +120,13 @@ impl netcanv_renderer::Font for Font {
    fn text_width(&self, text: &str) -> f32 {
       let context = self.context.borrow();
       if let Some(c) = &*context {
+         c.save();
+
+         c.set_font(&self.name);
          let metrics = c.measure_text(text).unwrap();
+
+         c.restore();
+
          metrics.width() as _
       } else {
          log::error!("Attempt to measure text width before using Font (context is None)");
@@ -389,7 +395,7 @@ impl Renderer for CanvasBackend {
 
       self.push();
 
-      self.set_fill_color(color);
+      self.set_stroke_color(color);
       self.context.set_line_width(thickness as _);
       self.context.set_line_cap(match cap {
          LineCap::Butt => "butt",
@@ -397,8 +403,10 @@ impl Renderer for CanvasBackend {
          LineCap::Square => "square",
       });
 
+      self.context.begin_path();
       self.context.move_to(a.x as _, a.y as _);
       self.context.line_to(b.x as _, b.y as _);
+      self.context.stroke();
 
       self.pop();
    }
