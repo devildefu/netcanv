@@ -16,5 +16,5 @@ thiserror = "1.0.24"
 anyhow = "1.0.40"
 
 async-std = "1.10.0"
-async-tungstenite = "0.16.0"
+async-tungstenite = { version = "0.16.0", features = ["async-std-runtime"] }
 futures = "0.3.17"

@@ -261,6 +261,7 @@ impl Matchmaker {
             }
             Message::Close(_) => {
                eprintln!("* bye bye mr. {} it was nice to see ya", peer_addr);
+               break;
             }
             _ => eprintln!("Got ignored message"),
          }

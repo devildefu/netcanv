@@ -1,15 +1,21 @@
 //! An abstraction for sockets, communicating over the global bus.
 
 use std::fmt::Debug;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Cursor, Write};
 use std::marker::PhantomData;
-use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
 
+use async_tungstenite::tungstenite::Message;
+use async_tungstenite::WebSocketStream;
+use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::stream::{SplitSink, SplitStream};
 use nysa::global as bus;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+use async_std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
+use async_std::task::{self, JoinHandle};
+use futures::{SinkExt, StreamExt};
 
 use crate::token::Token;
 
@@ -92,11 +98,6 @@ where
 {
    fn drop(&mut self) {
       bus::push(SendPacket::Quit::<T>(self.token));
-
-      let mut system_inner = self.system.inner.lock().unwrap();
-      let (receiving, sending) = system_inner.socket_threads[self.thread_slot].take().unwrap();
-      receiving.join().expect("receiving thread panicked");
-      sending.join().expect("sending thread panicked");
    }
 }
 
@@ -124,10 +125,12 @@ where
       address: &str,
       default_port: u16,
    ) -> anyhow::Result<Vec<SocketAddr>> {
-      Ok(if let Ok(addresses) = address.to_socket_addrs() {
-         addresses.collect()
-      } else {
-         (address, default_port).to_socket_addrs()?.collect()
+      task::block_on(async {
+         Ok(if let Ok(addresses) = address.to_socket_addrs().await {
+            addresses.collect()
+         } else {
+            (address, default_port).to_socket_addrs().await?.collect()
+         })
       })
    }
 
@@ -139,14 +142,10 @@ where
       let token = ConnectionToken(CONNECTION_TOKEN.next());
 
       let this = Arc::clone(self);
-      thread::Builder::new().name("network connection thread".into()).spawn(move || {
+      task::spawn(async move {
          let thread_slot = {
             let mut inner = this.inner.lock().unwrap();
-            let addresses = catch!(Self::resolve_address_with_default_port(
-               &address,
-               default_port
-            ));
-            catch!(inner.connect(token, &addresses[..]))
+            catch!(inner.connect(token, &address))
          };
          let socket = Socket {
             token,
@@ -154,7 +153,7 @@ where
             thread_slot,
          };
          bus::push(Connected { token, socket });
-      })?;
+      });
 
       Ok(token)
    }
@@ -190,11 +189,99 @@ where
       self.socket_threads.iter().position(|slot| slot.is_none())
    }
 
+   async fn read_loop(mut stream: SplitStream<WebSocketStream<TcpStream>>, token: ConnectionToken) {
+      while let Some(msg) = stream.next().await {
+         let msg = catch!(msg);
+         match msg {
+            Message::Binary(ref data) => {
+               let mut cursor = Cursor::new(data);
+
+               let data: T = catch!(bincode::deserialize_from(&mut cursor));
+               bus::push(IncomingPacket { token, data });
+            }
+            Message::Close(_) => {
+               eprintln!("Closed not handled");
+            }
+            _ => eprintln!("Got ignored message"),
+         }
+      }
+   }
+
+   async fn write_loop(tx: UnboundedSender<Message>, token: ConnectionToken) {
+      loop {
+         let message = bus::wait_for::<SendPacket<T>>();
+         match &*message {
+            // Serialize and send the packet.
+            SendPacket::Packet(packet) if packet.token == token => {
+               let mut buf = vec![];
+               let mut cursor = Cursor::new(&mut buf);
+               catch!(bincode::serialize_into(&mut cursor, &packet.data));
+               tx.unbounded_send(Message::Binary(buf));
+               message.consume();
+            }
+            // Quit when the owning socket is dropped.
+            SendPacket::Quit(quit_token) if *quit_token == token => {
+               // The read stream is most certainly still blocking, trying to read a packet.
+               // Thus, we shutdown the stream completely, which should make it stop reading.
+               // catch!(stream.shutdown(Shutdown::Both));
+               tx.unbounded_send(Message::Close(None));
+               message.consume();
+               return;
+            }
+            _ => (),
+         }
+      }
+   }
+
+   async fn send_loop(
+      mut rx: UnboundedReceiver<Message>,
+      mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+   ) {
+      while let Some(msg) = rx.next().await {
+         let is_close = msg.is_close();
+         sink.send(msg).await;
+         if is_close {
+            sink.close().await;
+         }
+      }
+   }
+
+   async fn async_connect(
+      address: impl AsRef<str>,
+      token: ConnectionToken,
+   ) -> anyhow::Result<(JoinHandle<()>, JoinHandle<()>)> {
+      let address = address.as_ref();
+      let address = format!("ws://{}", address);
+      println!("{}", address);
+      let url = url::Url::parse(&address)?;
+      println!("{}", url);
+
+      let (sink, stream) = {
+         let (stream, _) = async_tungstenite::async_std::connect_async(address).await?;
+         let (sink, stream) = stream.split();
+         (sink, stream)
+      };
+
+      let (tx, rx) = {
+         let (tx, rx) = unbounded();
+         (tx, rx)
+      };
+
+      let reading = task::spawn(Self::read_loop(stream, token));
+      let writing = task::spawn(Self::write_loop(tx, token));
+      task::spawn(Self::send_loop(rx, sink));
+
+      Ok((reading, writing))
+   }
+
    fn connect(
       &mut self,
       token: ConnectionToken,
-      address: impl ToSocketAddrs,
+      address: impl AsRef<str>,
    ) -> anyhow::Result<usize> {
+      let (receiving_thread, sending_thread) = task::block_on(Self::async_connect(address, token))?;
+
+      /*
       let stream = TcpStream::connect(address)?;
       stream.set_nodelay(true)?;
 
@@ -239,6 +326,7 @@ where
                _ => (),
             }
          })?;
+      */
 
       Ok(match self.find_free_slot() {
          Some(slot) => {
