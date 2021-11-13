@@ -17,14 +17,14 @@ const MAX_ROOM_ID: u32 = 9999;
 type Rooms = HashMap<u32, Arc<Mutex<Room>>>;
 
 struct Destination {
-   sender: Mutex<UnboundedSender<Message>>,
+   sender: UnboundedSender<Message>,
    peer_addr: SocketAddr,
 }
 
 impl Destination {
    pub fn new(sender: UnboundedSender<Message>, peer_addr: SocketAddr) -> Self {
       Self {
-         sender: Mutex::new(sender),
+         sender: sender,
          peer_addr,
       }
    }
@@ -77,7 +77,7 @@ fn send_packet(dest: &Destination, packet: &Packet) -> anyhow::Result<()> {
       packet => eprintln!("- sending packet {} -> {:?}", dest.peer_addr(), packet),
    }
 
-   let sender = dest.sender.lock().unwrap();
+   let sender = &dest.sender;
 
    // Let's make room for one kilobyte of data, usually that's all matchmaker needs,
    // and it will save some time with constant reallocation when more capacity is needed.
@@ -244,7 +244,7 @@ async fn handle_connection(
    peer_addr: SocketAddr,
 ) -> anyhow::Result<()> {
    eprintln!("* mornin' mr. {}", peer_addr);
-   // let (sender, receiver) = unbounded();
+
    let (sink, mut stream) = {
       let stream = async_tungstenite::accept_async(stream).await?;
       stream.split()
