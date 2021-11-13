@@ -78,9 +78,13 @@ fn send_packet(dest: &Destination, packet: &Packet) -> anyhow::Result<()> {
    }
 
    let sender = dest.sender.lock().unwrap();
-   let mut buf = vec![];
+
+   // Let's make room for one kilobyte of data, usually that's all matchmaker needs,
+   // and it will save some time with constant reallocation when more capacity is needed.
+   let mut buf = Vec::with_capacity(1024);
    bincode::serialize_into(&mut buf, packet)?;
    sender.unbounded_send(Message::Binary(buf))?;
+
    Ok(())
 }
 
