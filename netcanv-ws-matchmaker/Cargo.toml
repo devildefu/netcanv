@@ -10,10 +10,11 @@ netcanv-protocol = { path = "../netcanv-protocol" }
 
 serde = { version = "1.0.123", features = ["derive"] }
 bincode = "1.3.2"
-rand = "0.8.3"
 crossbeam-channel = "0.4.4"
 thiserror = "1.0.24"
 anyhow = "1.0.40"
+dashmap = "4.0.2"
+nanorand = "0.6.1"
 
 async-std = "1.10.0"
 async-tungstenite = { version = "0.16.0", features = ["async-std-runtime"] }

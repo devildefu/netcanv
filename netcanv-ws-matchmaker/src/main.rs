@@ -1,20 +1,22 @@
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, Weak};
 
 use async_std::net::{SocketAddr, TcpListener, TcpStream};
 use async_std::task;
+use async_tungstenite::async_std::ConnectStream;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::SplitSink;
 use futures::{SinkExt, StreamExt};
 
+use dashmap::DashMap;
+
 use netcanv_protocol::matchmaker::*;
 
 const MAX_ROOM_ID: u32 = 9999;
 
-type Rooms = HashMap<u32, Arc<Mutex<Room>>>;
+type Rooms = DashMap<u32, Arc<Mutex<Room>>>;
 
 struct Destination {
    sender: UnboundedSender<Message>,
@@ -23,10 +25,7 @@ struct Destination {
 
 impl Destination {
    pub fn new(sender: UnboundedSender<Message>, peer_addr: SocketAddr) -> Self {
-      Self {
-         sender: sender,
-         peer_addr,
-      }
+      Self { sender, peer_addr }
    }
 
    /// Get a reference to the destination's peer addr.
@@ -45,29 +44,32 @@ struct Room {
 
 struct Matchmaker {
    rooms: Rooms,
-   host_rooms: HashMap<SocketAddr, u32>,
-   relay_clients: HashMap<SocketAddr, u32>,
+   host_rooms: DashMap<SocketAddr, u32>,
+   relay_clients: DashMap<SocketAddr, u32>,
 }
 
 impl Matchmaker {
    fn new() -> Self {
       Self {
-         rooms: HashMap::new(),
-         host_rooms: HashMap::new(),
-         relay_clients: HashMap::new(),
+         rooms: DashMap::new(),
+         host_rooms: DashMap::new(),
+         relay_clients: DashMap::new(),
       }
    }
 }
 
 fn find_free_room_id(rooms: &Rooms) -> Option<u32> {
-   use rand::Rng;
-   let mut rng = rand::thread_rng();
+   use nanorand::{Rng, WyRand};
+
+   let mut rng = WyRand::new();
+
    for _ in 1..50 {
-      let id = rng.gen_range(0..=MAX_ROOM_ID);
+      let id = rng.generate_range(0..=MAX_ROOM_ID);
       if !rooms.contains_key(&id) {
          return Some(id);
       }
    }
+
    None
 }
 
@@ -92,8 +94,7 @@ fn send_error(dest: &Destination, error: &str) -> anyhow::Result<()> {
    send_packet(dest, &error_packet(error))
 }
 
-fn host(mm: Arc<Mutex<Matchmaker>>, dest: Arc<Destination>) -> anyhow::Result<()> {
-   let mut mm = mm.lock().unwrap();
+fn host(mm: Arc<Matchmaker>, dest: Arc<Destination>) -> anyhow::Result<()> {
    match find_free_room_id(&mm.rooms) {
       Some(room_id) => {
          let room = Room {
@@ -109,11 +110,11 @@ fn host(mm: Arc<Mutex<Matchmaker>>, dest: Arc<Destination>) -> anyhow::Result<()
       }
       None => send_error(&dest, "Could not find any more free rooms. Try again")?,
    }
+
    Ok(())
 }
 
-fn join(mm: Arc<Mutex<Matchmaker>>, dest: &Destination, room_id: u32) -> anyhow::Result<()> {
-   let mm = mm.lock().unwrap();
+fn join(mm: Arc<Matchmaker>, dest: &Destination, room_id: u32) -> anyhow::Result<()> {
    let room = match mm.rooms.get(&room_id) {
       Some(room) => room,
       None => {
@@ -123,17 +124,19 @@ fn join(mm: Arc<Mutex<Matchmaker>>, dest: &Destination, room_id: u32) -> anyhow:
          )?;
          return Ok(());
       }
-   }
-   .lock()
-   .unwrap();
+   };
+
+   let room = room.lock().unwrap();
+
    let client_addr = dest.peer_addr();
    let host_addr = room.host.peer_addr();
+
    send_packet(&room.host, &Packet::ClientAddress(client_addr))?;
    send_packet(dest, &Packet::HostAddress(host_addr))
 }
 
 fn add_relay(
-   mm: Arc<Mutex<Matchmaker>>,
+   mm: Arc<Matchmaker>,
    dest: Arc<Destination>,
    host_addr: Option<SocketAddr>,
 ) -> anyhow::Result<()> {
@@ -141,15 +144,15 @@ fn add_relay(
    eprintln!("- relay requested from {}", peer_addr);
 
    let host_addr: SocketAddr = host_addr.unwrap_or(peer_addr);
-   let mut mm = mm.lock().unwrap();
-   let room_id: u32;
-   match mm.host_rooms.get(&host_addr) {
-      Some(id) => room_id = *id,
+
+   let room_id = match mm.host_rooms.get(&host_addr) {
+      Some(id) => *id,
       None => {
          send_error(&dest, "The host seems to have disconnected")?;
          return Ok(());
       }
-   }
+   };
+
    mm.relay_clients.insert(peer_addr, room_id);
    mm.rooms.get_mut(&room_id).unwrap().lock().unwrap().clients.push(Arc::downgrade(&dest));
 
@@ -160,14 +163,14 @@ fn add_relay(
 }
 
 fn relay(
-   mm: Arc<Mutex<Matchmaker>>,
+   mm: Arc<Matchmaker>,
    addr: SocketAddr,
    dest: &Arc<Destination>,
    to: Option<SocketAddr>,
    data: Vec<u8>, // Vec because it's moved out of the Relay packet
 ) -> anyhow::Result<()> {
    eprintln!("relaying packet (size: {} KiB)", data.len() as f32 / 1024.0);
-   let mut mm = mm.lock().unwrap();
+
    let room_id = match mm.relay_clients.get(&addr) {
       Some(id) => *id,
       None => {
@@ -175,10 +178,10 @@ fn relay(
          return Ok(());
       }
    };
+
    match mm.rooms.get_mut(&room_id) {
       Some(room) => {
          let mut room = room.lock().unwrap().clone();
-         drop(mm);
          let mut nclients = 0;
          room.clients.retain(|client| client.upgrade().is_some());
          let packet = Packet::Relayed(addr, data);
@@ -206,7 +209,7 @@ fn relay(
 }
 
 fn incoming_packet(
-   mm: Arc<Mutex<Matchmaker>>,
+   mm: Arc<Matchmaker>,
    peer_addr: SocketAddr,
    dest: Arc<Destination>,
    packet: Packet,
@@ -215,6 +218,7 @@ fn incoming_packet(
       Packet::Relay(..) => (),
       packet => eprintln!("- incoming packet: {:?}", packet),
    }
+
    match packet {
       Packet::Host => host(mm, dest),
       Packet::GetHost(room_id) => join(mm, &dest, room_id),
@@ -229,7 +233,7 @@ fn incoming_packet(
 
 async fn send_loop(
    mut rx: UnboundedReceiver<Message>,
-   mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+   mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
 ) -> anyhow::Result<()> {
    while let Some(msg) = rx.next().await {
       sink.send(msg).await?;
@@ -239,7 +243,7 @@ async fn send_loop(
 }
 
 async fn handle_connection(
-   mm: Arc<Mutex<Matchmaker>>,
+   mm: Arc<Matchmaker>,
    stream: TcpStream,
    peer_addr: SocketAddr,
 ) -> anyhow::Result<()> {
@@ -263,6 +267,7 @@ async fn handle_connection(
          Message::Binary(ref data) => {
             let mut cursor = Cursor::new(data);
             let decoded = bincode::deserialize_from(&mut cursor)?;
+
             incoming_packet(mm.clone(), peer_addr, Arc::clone(&dest), decoded)?;
          }
          Message::Close(_) => {
@@ -289,7 +294,7 @@ async fn async_main() -> anyhow::Result<()> {
    let localhost = SocketAddr::from(([0, 0, 0, 0], port));
    let listener = TcpListener::bind(localhost).await?;
 
-   let state = Arc::new(Mutex::new(Matchmaker::new()));
+   let state = Arc::new(Matchmaker::new());
 
    eprintln!("Listening for incoming connections");
 
