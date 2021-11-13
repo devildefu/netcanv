@@ -8,7 +8,7 @@ use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::SplitSink;
-use futures::{future, SinkExt, StreamExt, TryStreamExt};
+use futures::{SinkExt, StreamExt};
 
 use netcanv_protocol::matchmaker::*;
 
@@ -36,6 +36,7 @@ impl Destination {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct Room {
    host: Arc<Destination>,
    clients: Vec<Weak<Destination>>,
@@ -76,9 +77,9 @@ fn send_packet(dest: &Destination, packet: &Packet) -> anyhow::Result<()> {
       packet => eprintln!("- sending packet {} -> {:?}", dest.peer_addr(), packet),
    }
 
-   let mut sender = dest.sender.lock().unwrap();
+   let sender = dest.sender.lock().unwrap();
    let mut buf = vec![];
-   let serialize_result = bincode::serialize_into(&mut buf, packet)?;
+   bincode::serialize_into(&mut buf, packet)?;
    sender.unbounded_send(Message::Binary(buf))?;
    Ok(())
 }
@@ -227,7 +228,7 @@ async fn send_loop(
    mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
 ) -> anyhow::Result<()> {
    while let Some(msg) = rx.next().await {
-      sink.send(msg).await;
+      sink.send(msg).await?;
    }
 
    Ok(())
