@@ -1,21 +1,22 @@
 //! An abstraction for sockets, communicating over the global bus.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::{BufReader, BufWriter, Cursor, Write};
+use std::io::Cursor;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use async_tungstenite::tungstenite::Message;
-use async_tungstenite::WebSocketStream;
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::stream::{SplitSink, SplitStream};
 use nysa::global as bus;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use async_std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
+use async_std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use async_std::task::{self, JoinHandle};
-use futures::{SinkExt, StreamExt};
+use async_tungstenite::tungstenite::Message;
+use async_tungstenite::WebSocketStream;
+use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::stream::{SplitSink, SplitStream};
+use futures::{future, SinkExt, StreamExt};
 
 use crate::token::Token;
 
@@ -23,7 +24,7 @@ use crate::token::Token;
 ///
 /// Once a socket connects successfully, [`Connected`] is pushed onto the bus, containing this
 /// token and the socket handle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ConnectionToken(usize);
 
 /// A successful connection message.
@@ -36,6 +37,7 @@ where
 }
 
 /// A message pushed onto the bus when there's a new packet incoming from a socket.
+#[derive(Debug)]
 pub struct IncomingPacket<T>
 where
    T: DeserializeOwned,
@@ -45,6 +47,7 @@ where
 }
 
 /// A message to the network subsystem that a packet should be sent with the given data.
+#[derive(Debug)]
 enum SendPacket<T>
 where
    T: DeserializeOwned + Serialize,
@@ -70,7 +73,6 @@ where
 {
    token: ConnectionToken,
    system: Arc<SocketSystem<T>>,
-   thread_slot: usize,
 }
 
 impl<T> Socket<T>
@@ -85,10 +87,13 @@ where
    /// Issues a request that a packet with the provided data should be serialized and sent over the
    /// socket.
    pub fn send(&self, data: T) {
-      bus::push(SendPacket::Packet(IncomingPacket {
-         token: self.token,
-         data,
-      }))
+      self.system.send(
+         SendPacket::Packet(IncomingPacket {
+            data,
+            token: self.token,
+         }),
+         self.token,
+      );
    }
 }
 
@@ -97,7 +102,14 @@ where
    T: 'static + Send + DeserializeOwned + Serialize + Debug,
 {
    fn drop(&mut self) {
-      bus::push(SendPacket::Quit::<T>(self.token));
+      self.system.send(SendPacket::Quit::<T>(self.token), self.token);
+
+      // Wait for each send loop to complete, otherwise netcanv will close too quickly,
+      // and the matchmaker will not end the connection
+      let mut inner = self.system.inner.lock().unwrap();
+      task::block_on(async {
+         inner.wait().await;
+      });
    }
 }
 
@@ -119,6 +131,11 @@ where
       Arc::new(Self {
          inner: Mutex::new(SocketSystemInner::new()),
       })
+   }
+
+   fn send(&self, packet: SendPacket<T>, token: ConnectionToken) {
+      let inner = self.inner.lock().unwrap();
+      inner.send(packet, token);
    }
 
    fn resolve_address_with_default_port(
@@ -143,14 +160,14 @@ where
 
       let this = Arc::clone(self);
       task::spawn(async move {
-         let thread_slot = {
+         {
             let mut inner = this.inner.lock().unwrap();
-            catch!(inner.connect(token, &address))
-         };
+            catch!(inner.connect(token, &address));
+         }
+
          let socket = Socket {
             token,
             system: this,
-            thread_slot,
          };
          bus::push(Connected { token, socket });
       });
@@ -160,14 +177,18 @@ where
 }
 
 /// A socket slot containing join handles for the receiving and sending thread, respectively.
-type Slot = Option<(JoinHandle<()>, JoinHandle<()>)>;
+type Slot<T> = Option<(
+   JoinHandle<()>,
+   JoinHandle<()>,
+   UnboundedSender<SendPacket<T>>,
+)>;
 
 /// The inner, non thread-safe data of `SocketSystem`.
 struct SocketSystemInner<T>
 where
    T: 'static + Send + DeserializeOwned + Serialize + Debug,
 {
-   socket_threads: Vec<Slot>,
+   socket_threads: HashMap<ConnectionToken, Slot<T>>,
    _phantom_data: PhantomData<T>,
 }
 
@@ -180,13 +201,15 @@ where
 
    fn new() -> Self {
       Self {
-         socket_threads: Vec::new(),
+         socket_threads: HashMap::new(),
          _phantom_data: PhantomData,
       }
    }
 
-   fn find_free_slot(&self) -> Option<usize> {
-      self.socket_threads.iter().position(|slot| slot.is_none())
+   fn send(&self, packet: SendPacket<T>, token: ConnectionToken) {
+      if let Some(Some((_, _, sender))) = self.socket_threads.get(&token) {
+         sender.unbounded_send(packet).unwrap();
+      }
    }
 
    async fn read_loop(mut stream: SplitStream<WebSocketStream<TcpStream>>, token: ConnectionToken) {
@@ -207,25 +230,24 @@ where
       }
    }
 
-   async fn write_loop(tx: UnboundedSender<Message>, token: ConnectionToken) {
-      loop {
-         let message = bus::wait_for::<SendPacket<T>>();
-         match &*message {
-            // Serialize and send the packet.
+   async fn send_loop(
+      mut rx: UnboundedReceiver<SendPacket<T>>,
+      mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+      token: ConnectionToken,
+   ) {
+      while let Some(message) = rx.next().await {
+         match message {
             SendPacket::Packet(packet) if packet.token == token => {
                let mut buf = vec![];
                let mut cursor = Cursor::new(&mut buf);
                catch!(bincode::serialize_into(&mut cursor, &packet.data));
-               tx.unbounded_send(Message::Binary(buf));
-               message.consume();
+
+               sink.send(Message::Binary(buf)).await.unwrap();
             }
-            // Quit when the owning socket is dropped.
-            SendPacket::Quit(quit_token) if *quit_token == token => {
-               // The read stream is most certainly still blocking, trying to read a packet.
-               // Thus, we shutdown the stream completely, which should make it stop reading.
-               // catch!(stream.shutdown(Shutdown::Both));
-               tx.unbounded_send(Message::Close(None));
-               message.consume();
+            SendPacket::Quit(quit_token) if quit_token == token => {
+               sink.send(Message::Close(None)).await.unwrap();
+               sink.close().await.unwrap();
+
                return;
             }
             _ => (),
@@ -233,111 +255,61 @@ where
       }
    }
 
-   async fn send_loop(
-      mut rx: UnboundedReceiver<Message>,
-      mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
-   ) {
-      while let Some(msg) = rx.next().await {
-         let is_close = msg.is_close();
-         sink.send(msg).await;
-         if is_close {
-            sink.close().await;
-         }
-      }
-   }
-
    async fn async_connect(
       address: impl AsRef<str>,
       token: ConnectionToken,
-   ) -> anyhow::Result<(JoinHandle<()>, JoinHandle<()>)> {
+   ) -> anyhow::Result<(
+      JoinHandle<()>,
+      JoinHandle<()>,
+      UnboundedSender<SendPacket<T>>,
+   )> {
+      // Format address
       let address = address.as_ref();
       let address = format!("ws://{}", address);
       println!("{}", address);
       let url = url::Url::parse(&address)?;
       println!("{}", url);
 
+      // Connect to matchmaker
       let (sink, stream) = {
          let (stream, _) = async_tungstenite::async_std::connect_async(address).await?;
          let (sink, stream) = stream.split();
          (sink, stream)
       };
 
+      // Channel for sending data to matchmaker
+      // Sender (tx) is for Socket<T>, and Receiver (rx) is for send loop
       let (tx, rx) = {
          let (tx, rx) = unbounded();
          (tx, rx)
       };
 
       let reading = task::spawn(Self::read_loop(stream, token));
-      let writing = task::spawn(Self::write_loop(tx, token));
-      task::spawn(Self::send_loop(rx, sink));
+      let sending = task::spawn(Self::send_loop(rx, sink, token));
 
-      Ok((reading, writing))
+      Ok((reading, sending, tx))
    }
 
-   fn connect(
-      &mut self,
-      token: ConnectionToken,
-      address: impl AsRef<str>,
-   ) -> anyhow::Result<usize> {
-      let (receiving_thread, sending_thread) = task::block_on(Self::async_connect(address, token))?;
+   fn connect(&mut self, token: ConnectionToken, address: impl AsRef<str>) -> anyhow::Result<()> {
+      let (receiving_thread, sending_thread, tx) =
+         task::block_on(Self::async_connect(address, token))?;
 
-      /*
-      let stream = TcpStream::connect(address)?;
-      stream.set_nodelay(true)?;
+      self.socket_threads.insert(token, Some((receiving_thread, sending_thread, tx)));
 
-      const KILOBYTE: usize = 1024;
+      Ok(())
+   }
 
-      // Reading and writing is buffered so as not to slow down performance when big packets are sent.
-
-      let reader = stream.try_clone()?; // BufReader::with_capacity(64 * KILOBYTE, stream.try_clone()?);
-      let receiving_thread =
-         thread::Builder::new().name("network receiving thread".into()).spawn(move || loop {
-            // Quit when the owning socket's dropped.
-            for message in &bus::retrieve_all::<QuitReceive>() {
-               if message.0 == token {
-                  message.consume();
-                  return;
-               }
-            }
-            // Read packets from the stream. `deserialize_from` will block until a packet is read successfully.
-            let data: T = catch!(bincode::deserialize_from(&reader));
-            bus::push(IncomingPacket { token, data });
-         })?;
-
-      let mut writer = BufWriter::with_capacity(64 * KILOBYTE, stream.try_clone()?);
-      let sending_thread =
-         thread::Builder::new().name("network sending thread".into()).spawn(move || loop {
-            let message = bus::wait_for::<SendPacket<T>>();
-            match &*message {
-               // Serialize and send the packet.
-               SendPacket::Packet(packet) if packet.token == token => {
-                  catch!(bincode::serialize_into(&mut writer, &packet.data));
-                  catch!(writer.flush());
-                  message.consume();
-               }
-               // Quit when the owning socket is dropped.
-               SendPacket::Quit(quit_token) if *quit_token == token => {
-                  // The read stream is most certainly still blocking, trying to read a packet.
-                  // Thus, we shutdown the stream completely, which should make it stop reading.
-                  catch!(stream.shutdown(Shutdown::Both));
-                  message.consume();
-                  return;
-               }
-               _ => (),
-            }
-         })?;
-      */
-
-      Ok(match self.find_free_slot() {
-         Some(slot) => {
-            self.socket_threads[slot] = Some((receiving_thread, sending_thread));
-            slot
+   pub async fn wait(&mut self) {
+      // Take all senders
+      let senders = self.socket_threads.iter_mut().filter_map(|(_, v)| {
+         if let Some((_, send, _)) = v.take() {
+            Some(send)
+         } else {
+            None
          }
-         None => {
-            let slot = self.socket_threads.len();
-            self.socket_threads.push(Some((receiving_thread, sending_thread)));
-            slot
-         }
-      })
+      });
+
+      // Combine all senders into one future
+      future::select_all(senders).await;
    }
 }
