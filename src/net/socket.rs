@@ -141,14 +141,18 @@ where
    fn resolve_address_with_default_port(
       address: &str,
       default_port: u16,
-   ) -> anyhow::Result<Vec<SocketAddr>> {
-      task::block_on(async {
-         Ok(if let Ok(addresses) = address.to_socket_addrs().await {
-            addresses.collect()
-         } else {
-            (address, default_port).to_socket_addrs().await?.collect()
-         })
-      })
+   ) -> anyhow::Result<url::Url> {
+      let mut url = url::Url::parse(&format!("ws://{}", address))?;
+
+      if let None = url.port() {
+         // Url::set_port on Error does nothing, so it is fine to ignore it
+         #[allow(unused_must_use)]
+         {
+            url.set_port(Some(default_port));
+         }
+      }
+
+      Ok(url)
    }
 
    pub fn connect(
@@ -162,6 +166,10 @@ where
       task::spawn(async move {
          {
             let mut inner = this.inner.lock().unwrap();
+            let address = catch!(Self::resolve_address_with_default_port(
+               &address,
+               default_port
+            ));
             catch!(inner.connect(token, &address));
          }
 
@@ -263,12 +271,8 @@ where
       JoinHandle<()>,
       UnboundedSender<SendPacket<T>>,
    )> {
-      // Format address
       let address = address.as_ref();
-      let address = format!("ws://{}", address);
       println!("{}", address);
-      let url = url::Url::parse(&address)?;
-      println!("{}", url);
 
       // Connect to matchmaker
       let (sink, stream) = {
