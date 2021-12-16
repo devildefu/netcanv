@@ -10,7 +10,7 @@ use nysa::global as bus;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use async_std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use async_std::net::TcpStream;
 use async_std::task::{self, JoinHandle};
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
@@ -221,21 +221,31 @@ where
    }
 
    async fn read_loop(mut stream: SplitStream<WebSocketStream<TcpStream>>, token: ConnectionToken) {
+      use async_tungstenite::tungstenite::{error::ProtocolError, Error as WsError};
       while let Some(msg) = stream.next().await {
-         let msg = catch!(msg);
          match msg {
-            Message::Binary(ref data) => {
+            Ok(Message::Binary(ref data)) => {
                let mut cursor = Cursor::new(data);
 
                let data: T = catch!(bincode::deserialize_from(&mut cursor));
                bus::push(IncomingPacket { token, data });
             }
-            Message::Close(_) => {
-               eprintln!("Closed not handled");
+            Ok(Message::Close(_)) => {
+               break;
             }
-            _ => eprintln!("Got ignored message"),
+            Err(WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake)) => {
+               // HACK: Netcanv has no way to convey that matchmaker is not working,
+               // so I have to pretend that matchmaker sent an error.
+               let data = netcanv_protocol::matchmaker::Packet::Error(
+                  "Matchmaker has been closed".to_string(),
+               );
+               bus::push(IncomingPacket { token, data });
+            }
+            _ => eprintln!("Got {:?}, ignored", msg),
          }
       }
+
+      println!("read loop done");
    }
 
    async fn send_loop(
@@ -253,14 +263,22 @@ where
                sink.send(Message::Binary(buf)).await.unwrap();
             }
             SendPacket::Quit(quit_token) if quit_token == token => {
-               sink.send(Message::Close(None)).await.unwrap();
-               sink.close().await.unwrap();
+               use async_tungstenite::tungstenite::Error;
+               match sink.close().await {
+                  // HACK: We should know better when the connection was closed, but for now let's use AlreadyClosed
+                  Err(Error::AlreadyClosed) => {
+                     break;
+                  }
+                  _ => (),
+               }
 
-               return;
+               break;
             }
             _ => (),
          }
       }
+
+      println!("send loop done");
    }
 
    async fn async_connect(
