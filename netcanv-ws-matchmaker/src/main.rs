@@ -233,6 +233,33 @@ fn incoming_packet(
    }
 }
 
+fn disconnect(
+   mm: Arc<Matchmaker>,
+   peer_addr: SocketAddr,
+   dest: Arc<Destination>,
+) -> anyhow::Result<()> {
+   if let Some((_, room_id)) = mm.host_rooms.remove(&peer_addr) {
+      mm.rooms.remove(&room_id);
+   }
+   if let Some((_, room_id)) = mm.relay_clients.remove(&peer_addr) {
+      if let Some(room) = mm.rooms.get_mut(&room_id) {
+         let room = room.lock().unwrap();
+         for client in &room.clients {
+            let client = client.upgrade();
+            if client.is_none() {
+               continue;
+            }
+            let client = client.unwrap();
+            if Arc::ptr_eq(&client, &dest) {
+               continue;
+            }
+            let _ = send_packet(&client, &Packet::Disconnected(peer_addr));
+         }
+      }
+   }
+   Ok(())
+}
+
 async fn send_loop(
    mut rx: UnboundedReceiver<Message>,
    mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
@@ -260,7 +287,7 @@ async fn send_loop(
             },
             Capacity(CapacityError::TooManyHeaders) => eprintln!("! Capacity error: Too many headers"),
             Capacity(CapacityError::MessageTooLong { size, max_size }) =>
-               eprintln!("! Capacity error: Message is bigger than the configured max message size (size is {} bytes, but maximum is {} bytes)", size, max_size),
+            eprintln!("! Capacity error: Message is bigger than the configured max message size (size is {} bytes, but maximum is {} bytes)", size, max_size),
             _ => {
                eprintln!("! Not handled error (report it, thanks): {:?}", e);
                break;
@@ -289,7 +316,7 @@ async fn handle_connection(
       (Arc::new(Destination::new(tx, peer_addr)), rx)
    };
 
-   task::spawn(send_loop(rx, sink));
+   let send = task::spawn(send_loop(rx, sink));
 
    'main: while let Some(msg) = stream.next().await {
       match msg {
@@ -300,7 +327,7 @@ async fn handle_connection(
                Err(error)
             })?;
 
-            incoming_packet(mm.clone(), peer_addr, Arc::clone(&dest), decoded)?;
+            incoming_packet(Arc::clone(&mm), peer_addr, Arc::clone(&dest), decoded)?;
          }
          Ok(Message::Close(frame)) => {
             eprintln!("* bye bye mr. {} it was nice to see ya", peer_addr);
@@ -309,40 +336,47 @@ async fn handle_connection(
                eprintln!("** code: {}\n** reason: {}", frame.code, frame.reason);
             }
 
+            disconnect(Arc::clone(&mm), peer_addr, Arc::clone(&dest))?;
+
             // NOTE: tungstenite wants to drop the connection only when we get Error::ConnectionClosed
          }
          Ok(_) => eprintln!("Got ignored message"),
          Err(e) => {
             use async_tungstenite::tungstenite::error::Error::*;
             match e {
-                  ConnectionClosed => break 'main,
-                  AlreadyClosed => {
-                     // According to the documentation this error is the fault of the programmer.
-                     // However, this error would crash the entire matchmaker and *all* rooms,
-                     // so it's better to treat it as a simple error and end the connection.
-                     // TODO: Use a better logger to make this error more visible
-                     eprintln!("! The connection has been closed, but the matchmaker is trying to work with already closed connection.");
-                     break 'main;
-                  }
-                  Io(e) => {
-                     eprintln!("! I/O error: {:?}", e);
-                     break 'main;
-                  },
-                  Tls(e) => {
-                     eprintln!("! TLS error: {:?}", e);
-                     break 'main;
-                  },
-                  Capacity(CapacityError::TooManyHeaders) => eprintln!("! Capacity error: Too many headers"),
-                  Capacity(CapacityError::MessageTooLong { size, max_size }) =>
-                     eprintln!("! Capacity error: Buffer capacity exhausted (got {} bytes, but maximum is {} bytes)", size, max_size),
-                  _ => {
-                     eprintln!("! Not handled error (report it, thanks): {:?}", e);
-                     break 'main;
-                  },
+               ConnectionClosed => {
+                  println!("zesral sie");
+                  break 'main;
+               },
+               AlreadyClosed => {
+                  // According to the documentation this error is the fault of the programmer.
+                  // However, this error would crash the entire matchmaker and *all* rooms,
+                  // so it's better to treat it as a simple error and end the connection.
+                  // TODO: Use a better logger to make this error more visible
+                  eprintln!("! The connection has been closed, but the matchmaker is trying to work with already closed connection.");
+                  break 'main;
                }
+               Io(e) => {
+                  eprintln!("! I/O error: {:?}", e);
+                  break 'main;
+               },
+               Tls(e) => {
+                  eprintln!("! TLS error: {:?}", e);
+                  break 'main;
+               },
+               Capacity(CapacityError::TooManyHeaders) => eprintln!("! Capacity error: Too many headers"),
+               Capacity(CapacityError::MessageTooLong { size, max_size }) =>
+               eprintln!("! Capacity error: Buffer capacity exhausted (got {} bytes, but maximum is {} bytes)", size, max_size),
+               _ => {
+                  eprintln!("! Not handled error (report it, thanks): {:?}", e);
+                  break 'main;
+               },
+            }
          }
       }
    }
+
+   send.await?;
 
    Ok(())
 }
