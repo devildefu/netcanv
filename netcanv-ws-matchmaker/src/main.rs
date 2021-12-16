@@ -2,8 +2,10 @@ use std::io::Cursor;
 use std::sync::{Arc, Mutex, Weak};
 
 use async_std::net::{SocketAddr, TcpListener, TcpStream};
+use async_std::prelude::*;
 use async_std::task;
 use async_tungstenite::async_std::ConnectStream;
+use async_tungstenite::tungstenite::error::CapacityError;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -236,7 +238,35 @@ async fn send_loop(
    mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
 ) -> anyhow::Result<()> {
    while let Some(msg) = rx.next().await {
-      sink.send(msg).await?;
+      if let Err(e) = sink.send(msg).await {
+         use async_tungstenite::tungstenite::error::Error::*;
+         match e {
+            ConnectionClosed => break,
+            AlreadyClosed => {
+               // According to the documentation this error is the fault of the programmer.
+               // However, this error would crash the entire matchmaker and *all* rooms,
+               // so it's better to treat it as a simple error and end the connection.
+               // TODO: Use a better logger to make this error more visible
+               eprintln!("! The connection has been closed, but the matchmaker is trying to work with already closed connection.");
+               break;
+            }
+            Io(e) => {
+               eprintln!("! I/O error: {:?}", e);
+               break;
+            },
+            Tls(e) => {
+               eprintln!("! TLS error: {:?}", e);
+               break;
+            },
+            Capacity(CapacityError::TooManyHeaders) => eprintln!("! Capacity error: Too many headers"),
+            Capacity(CapacityError::MessageTooLong { size, max_size }) =>
+               eprintln!("! Capacity error: Message is bigger than the configured max message size (size is {} bytes, but maximum is {} bytes)", size, max_size),
+            _ => {
+               eprintln!("! Not handled error (report it, thanks): {:?}", e);
+               break;
+            },
+         }
+      }
    }
 
    Ok(())
@@ -261,24 +291,71 @@ async fn handle_connection(
 
    task::spawn(send_loop(rx, sink));
 
-   while let Some(msg) = stream.next().await {
-      let msg = msg?;
+   'main: while let Some(msg) = stream.next().await {
       match msg {
-         Message::Binary(ref data) => {
+         Ok(Message::Binary(ref data)) => {
             let mut cursor = Cursor::new(data);
-            let decoded = bincode::deserialize_from(&mut cursor)?;
+            let decoded = bincode::deserialize_from(&mut cursor).or_else(|error| {
+               eprintln!("! error/packet decode from {}: {}", peer_addr, error);
+               Err(error)
+            })?;
 
             incoming_packet(mm.clone(), peer_addr, Arc::clone(&dest), decoded)?;
          }
-         Message::Close(_) => {
+         Ok(Message::Close(frame)) => {
             eprintln!("* bye bye mr. {} it was nice to see ya", peer_addr);
-            break;
+
+            if let Some(frame) = frame {
+               eprintln!("** code: {}\n** reason: {}", frame.code, frame.reason);
+            }
+
+            // NOTE: tungstenite wants to drop the connection only when we get Error::ConnectionClosed
          }
-         _ => eprintln!("Got ignored message"),
+         Ok(_) => eprintln!("Got ignored message"),
+         Err(e) => {
+            use async_tungstenite::tungstenite::error::Error::*;
+            match e {
+                  ConnectionClosed => break 'main,
+                  AlreadyClosed => {
+                     // According to the documentation this error is the fault of the programmer.
+                     // However, this error would crash the entire matchmaker and *all* rooms,
+                     // so it's better to treat it as a simple error and end the connection.
+                     // TODO: Use a better logger to make this error more visible
+                     eprintln!("! The connection has been closed, but the matchmaker is trying to work with already closed connection.");
+                     break 'main;
+                  }
+                  Io(e) => {
+                     eprintln!("! I/O error: {:?}", e);
+                     break 'main;
+                  },
+                  Tls(e) => {
+                     eprintln!("! TLS error: {:?}", e);
+                     break 'main;
+                  },
+                  Capacity(CapacityError::TooManyHeaders) => eprintln!("! Capacity error: Too many headers"),
+                  Capacity(CapacityError::MessageTooLong { size, max_size }) =>
+                     eprintln!("! Capacity error: Buffer capacity exhausted (got {} bytes, but maximum is {} bytes)", size, max_size),
+                  _ => {
+                     eprintln!("! Not handled error (report it, thanks): {:?}", e);
+                     break 'main;
+                  },
+               }
+         }
       }
    }
 
    Ok(())
+}
+
+fn spawn_and_log_error<F>(fut: F) -> task::JoinHandle<()>
+where
+   F: Future<Output = anyhow::Result<()>> + Send + 'static,
+{
+   task::spawn(async move {
+      if let Err(e) = fut.await {
+         eprintln!("{}", e)
+      }
+   })
 }
 
 async fn async_main() -> anyhow::Result<()> {
@@ -299,7 +376,7 @@ async fn async_main() -> anyhow::Result<()> {
    eprintln!("Listening for incoming connections");
 
    while let Ok((stream, addr)) = listener.accept().await {
-      task::spawn(handle_connection(state.clone(), stream, addr));
+      spawn_and_log_error(handle_connection(state.clone(), stream, addr));
    }
 
    Ok(())
