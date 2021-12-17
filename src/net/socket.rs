@@ -18,6 +18,7 @@ use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{future, SinkExt, StreamExt};
 
+use crate::common::Fatal;
 use crate::token::Token;
 
 /// A token for connecting a socket asynchronously.
@@ -216,7 +217,10 @@ where
 
    fn send(&self, packet: SendPacket<T>, token: ConnectionToken) {
       if let Some(Some((_, _, sender))) = self.socket_threads.get(&token) {
-         sender.unbounded_send(packet).unwrap();
+         if let Err(e) = sender.unbounded_send(packet) {
+            bus::push(Fatal(anyhow::anyhow!("internal error")));
+            eprintln!("{:?}", e);
+         }
       }
    }
 
@@ -234,12 +238,7 @@ where
                break;
             }
             Err(WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake)) => {
-               // HACK: Netcanv has no way to convey that matchmaker is not working,
-               // so I have to pretend that matchmaker sent an error.
-               let data = netcanv_protocol::matchmaker::Packet::Error(
-                  "Matchmaker has been closed".to_string(),
-               );
-               bus::push(IncomingPacket { token, data });
+               bus::push(Fatal(anyhow::anyhow!("Matchmaker has been closed")));
             }
             _ => eprintln!("Got {:?}, ignored", msg),
          }
@@ -253,28 +252,33 @@ where
       mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
       token: ConnectionToken,
    ) {
-      while let Some(message) = rx.next().await {
-         match message {
+      'send: while let Some(message) = rx.next().await {
+         // send() and close() have the same errors, so we can put them in the same if
+         if let Err(e) = match message {
             SendPacket::Packet(packet) if packet.token == token => {
                let mut buf = vec![];
                let mut cursor = Cursor::new(&mut buf);
                catch!(bincode::serialize_into(&mut cursor, &packet.data));
 
-               sink.send(Message::Binary(buf)).await.unwrap();
+               sink.send(Message::Binary(buf)).await
             }
             SendPacket::Quit(quit_token) if quit_token == token => {
-               use async_tungstenite::tungstenite::Error;
-               match sink.close().await {
-                  // HACK: We should know better when the connection was closed, but for now let's use AlreadyClosed
-                  Err(Error::AlreadyClosed) => {
-                     break;
-                  }
-                  _ => (),
+               // If there was an error when closing, we need to pass it on,
+               // if not, we can just exit the loop
+               if let Err(e) = sink.close().await {
+                  Err(e)
+               } else {
+                  break 'send;
                }
-
-               break;
             }
-            _ => (),
+            _ => Ok(()),
+         } {
+            match e {
+               _ => bus::push(Fatal(anyhow::anyhow!(
+                  "Not handled connection error: {:?}",
+                  e
+               ))),
+            }
          }
       }
 
