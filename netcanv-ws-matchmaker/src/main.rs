@@ -1,3 +1,6 @@
+// the netcanv websockets matchmaker server.
+// keeps track of open rooms and exchanges addresses between hosts and their clients
+
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -16,10 +19,12 @@ use dashmap::DashMap;
 
 use netcanv_protocol::matchmaker::*;
 
+/// Maximum possible room ID. This can be raised, if IDs ever run out.
 const MAX_ROOM_ID: u32 = 9999;
 
 type Rooms = DashMap<u32, Arc<Mutex<Room>>>;
 
+/// A sender and peer address, packet into one struct for convenience.
 struct Destination {
    sender: UnboundedSender<Message>,
    peer_addr: SocketAddr,
@@ -36,6 +41,7 @@ impl Destination {
    }
 }
 
+/// A room containing the host and weak references to relay clients connected to the room.
 #[derive(Clone)]
 #[allow(dead_code)]
 struct Room {
@@ -44,9 +50,14 @@ struct Room {
    id: u32,
 }
 
+/// The matchmaker state, usually passed around behind an Arc<Mutex<T>>.
 struct Matchmaker {
+   /// The rooms available on the matchmaker server. Each room is available behind an
+   /// Arc<Mutex<T>>, so that accessing a room does not require locking the matchmaker mutex.
    rooms: Rooms,
+   /// A mapping from host addresses to their room IDs.
    host_rooms: DashMap<SocketAddr, u32>,
+   /// A mapping from relay client addresses to their room IDs.
    relay_clients: DashMap<SocketAddr, u32>,
 }
 
@@ -60,6 +71,9 @@ impl Matchmaker {
    }
 }
 
+/// Searches for a free room ID by rolling a dice 50 times until an ID is found.
+/// If an ID cannot be found, None is returned and the requesting client is expected to ask for
+/// a free room again.
 fn find_free_room_id(rooms: &Rooms) -> Option<u32> {
    use nanorand::{Rng, WyRand};
 
@@ -75,6 +89,7 @@ fn find_free_room_id(rooms: &Rooms) -> Option<u32> {
    None
 }
 
+/// Serializes a packet and sends it.
 fn send_packet(dest: &Destination, packet: &Packet) -> anyhow::Result<()> {
    match &packet {
       Packet::Relayed(..) => (),
@@ -92,10 +107,12 @@ fn send_packet(dest: &Destination, packet: &Packet) -> anyhow::Result<()> {
    Ok(())
 }
 
+/// Sends an error packet.
 fn send_error(dest: &Destination, error: &str) -> anyhow::Result<()> {
    send_packet(dest, &error_packet(error))
 }
 
+/// Packet::Host handler. Searches for a free room ID, and sends it to the requesting client.
 fn host(mm: Arc<Matchmaker>, dest: Arc<Destination>) -> anyhow::Result<()> {
    match find_free_room_id(&mm.rooms) {
       Some(room_id) => {
@@ -116,6 +133,8 @@ fn host(mm: Arc<Matchmaker>, dest: Arc<Destination>) -> anyhow::Result<()> {
    Ok(())
 }
 
+/// Packet::GetHost handler. Finds the host with the given ID, and exchanges addresses between
+/// the client and the host.
 fn join(mm: Arc<Matchmaker>, dest: &Destination, room_id: u32) -> anyhow::Result<()> {
    let room = match mm.rooms.get(&room_id) {
       Some(room) => room,
@@ -137,6 +156,7 @@ fn join(mm: Arc<Matchmaker>, dest: &Destination, room_id: u32) -> anyhow::Result
    send_packet(dest, &Packet::HostAddress(host_addr))
 }
 
+/// Adds a relay client to the matchmaker.
 fn add_relay(
    mm: Arc<Matchmaker>,
    dest: Arc<Destination>,
@@ -164,6 +184,8 @@ fn add_relay(
    Ok(())
 }
 
+/// Relays a packet to a specific relay client in the sender's room, or all relay clients in
+/// that room, depending on whether `to` is `Some` or `None`.
 fn relay(
    mm: Arc<Matchmaker>,
    addr: SocketAddr,
@@ -210,6 +232,7 @@ fn relay(
    Ok(())
 }
 
+/// Dispatch point for all the different functions for handling packets.
 fn incoming_packet(
    mm: Arc<Matchmaker>,
    peer_addr: SocketAddr,
@@ -233,6 +256,7 @@ fn incoming_packet(
    }
 }
 
+/// Disconnects a client gracefully by removing all references to it inside of the matchmaker.
 fn disconnect(
    mm: Arc<Matchmaker>,
    peer_addr: SocketAddr,
@@ -260,6 +284,7 @@ fn disconnect(
    Ok(())
 }
 
+/// Task dealing with sending messages to clients
 async fn send_loop(
    mut rx: UnboundedReceiver<Message>,
    mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
@@ -299,6 +324,8 @@ async fn send_loop(
    Ok(())
 }
 
+/// Spawns a new client handler task that reads messages from the client and deserializes them,
+/// then passing them into the incoming_packet function.
 async fn handle_connection(
    mm: Arc<Matchmaker>,
    stream: TcpStream,
@@ -345,7 +372,6 @@ async fn handle_connection(
             use async_tungstenite::tungstenite::error::Error::*;
             match e {
                ConnectionClosed => {
-                  println!("zesral sie");
                   break 'main;
                },
                AlreadyClosed => {
