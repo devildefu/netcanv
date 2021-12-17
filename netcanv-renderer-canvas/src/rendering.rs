@@ -1,7 +1,5 @@
-use netcanv_renderer::{
-   paws::{AlignH, AlignV, Renderer},
-   RenderBackend,
-};
+use netcanv_renderer::paws::{AlignH, AlignV, Renderer};
+use netcanv_renderer::RenderBackend;
 use std::rc::Rc;
 
 use crate::common::*;
@@ -27,14 +25,22 @@ impl CanvasBackend {
       self.context.set_fill_style(&color_to_jsvalue(color));
    }
 
-   pub(crate) fn draw_image(&mut self, image: &Image, position: netcanv_renderer::paws::Point) {
+   pub(crate) fn draw_image(&mut self, image: &Image, position: netcanv_renderer::paws::Rect) {
       match self.cache.get(image.data()) {
          Some(i) => {
-            self.context.draw_image_with_html_image_element(i, position.x as _, position.y as _);
+            self.context.draw_image_with_html_image_element(
+               i,
+               position.x() as _,
+               position.y() as _,
+            );
          }
          None => {
             let i = image.build();
-            self.context.draw_image_with_html_image_element(&i, position.x as _, position.y as _);
+            self.context.draw_image_with_html_image_element(
+               &i,
+               position.x() as _,
+               position.y() as _,
+            );
             self.cache.insert(image.data().to_vec(), i);
          }
       }
@@ -226,13 +232,13 @@ impl RenderBackend for CanvasBackend {
       self.pop();
    }
 
-   fn image(&mut self, position: netcanv_renderer::paws::Point, image: &Self::Image) {
+   fn image(&mut self, position: netcanv_renderer::paws::Rect, image: &Self::Image) {
       self.draw_image(image, position);
    }
 
    fn framebuffer(
       &mut self,
-      position: netcanv_renderer::paws::Point,
+      position: netcanv_renderer::paws::Rect,
       framebuffer: &Self::Framebuffer,
    ) {
       todo!()

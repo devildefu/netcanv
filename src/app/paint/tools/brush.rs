@@ -9,7 +9,12 @@ use netcanv_renderer::paws::{
    point, vector, AlignH, AlignV, Color, Layout, LineCap, Point, Rect, Renderer,
 };
 use netcanv_renderer::{BlendMode, Font, RenderBackend};
+
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::winit::event::VirtualKeyCode;
+#[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::event::VirtualKeyCode;
+
 use serde::{Deserialize, Serialize};
 
 use crate::app::paint;
