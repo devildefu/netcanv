@@ -57,9 +57,6 @@ where
    Quit(ConnectionToken),
 }
 
-/// A message asking the rx thread with associated token to shut down.
-struct QuitReceive(ConnectionToken);
-
 /// A trait describing a valid, (de)serializable, owned packet.
 pub trait Packet: 'static + Send + DeserializeOwned + Serialize {}
 
@@ -185,19 +182,20 @@ where
    }
 }
 
-/// A socket slot containing join handles for the receiving and sending thread, respectively.
-type Slot<T> = Option<(
-   JoinHandle<()>,
-   JoinHandle<()>,
-   UnboundedSender<SendPacket<T>>,
-)>;
+/// A socket slot containing join handles for the receiving and sending thread, respectively,
+/// and sender to communicate with the send loop.
+struct Slot<T: DeserializeOwned + Serialize> {
+   receiving_task: JoinHandle<()>,
+   sending_task: JoinHandle<()>,
+   sender: UnboundedSender<SendPacket<T>>,
+}
 
 /// The inner, non thread-safe data of `SocketSystem`.
 struct SocketSystemInner<T>
 where
    T: 'static + Send + DeserializeOwned + Serialize + Debug,
 {
-   socket_threads: HashMap<ConnectionToken, Slot<T>>,
+   socket_threads: HashMap<ConnectionToken, Option<Slot<T>>>,
    _phantom_data: PhantomData<T>,
 }
 
@@ -216,7 +214,7 @@ where
    }
 
    fn send(&self, packet: SendPacket<T>, token: ConnectionToken) {
-      if let Some(Some((_, _, sender))) = self.socket_threads.get(&token) {
+      if let Some(Some(Slot { sender, .. })) = self.socket_threads.get(&token) {
          if let Err(e) = sender.unbounded_send(packet) {
             bus::push(Fatal(anyhow::anyhow!("internal error")));
             eprintln!("{:?}", e);
@@ -224,7 +222,10 @@ where
       }
    }
 
-   async fn read_loop(mut stream: SplitStream<WebSocketStream<TcpStream>>, token: ConnectionToken) {
+   async fn receive_loop(
+      mut stream: SplitStream<WebSocketStream<TcpStream>>,
+      token: ConnectionToken,
+   ) {
       use async_tungstenite::tungstenite::{error::ProtocolError, Error as WsError};
       while let Some(msg) = stream.next().await {
          match msg {
@@ -244,7 +245,7 @@ where
          }
       }
 
-      println!("read loop done");
+      println!("receive loop done");
    }
 
    async fn send_loop(
@@ -288,11 +289,7 @@ where
    async fn async_connect(
       address: impl AsRef<str>,
       token: ConnectionToken,
-   ) -> anyhow::Result<(
-      JoinHandle<()>,
-      JoinHandle<()>,
-      UnboundedSender<SendPacket<T>>,
-   )> {
+   ) -> anyhow::Result<Slot<T>> {
       let address = address.as_ref();
       println!("{}", address);
 
@@ -304,32 +301,46 @@ where
       };
 
       // Channel for sending data to matchmaker
-      // Sender (tx) is for Socket<T>, and Receiver (rx) is for send loop
-      let (tx, rx) = {
+      // Sender is for Socket<T>, and Receiver is for send loop
+      let (sender, receiver) = {
          let (tx, rx) = unbounded();
          (tx, rx)
       };
 
-      let reading = task::spawn(Self::read_loop(stream, token));
-      let sending = task::spawn(Self::send_loop(rx, sink, token));
+      let receiving_task = task::spawn(Self::receive_loop(stream, token));
+      let sending_task = task::spawn(Self::send_loop(receiver, sink, token));
 
-      Ok((reading, sending, tx))
+      Ok(Slot {
+         receiving_task,
+         sending_task,
+         sender,
+      })
    }
 
    fn connect(&mut self, token: ConnectionToken, address: impl AsRef<str>) -> anyhow::Result<()> {
-      let (receiving_thread, sending_thread, tx) =
-         task::block_on(Self::async_connect(address, token))?;
+      let Slot {
+         receiving_task,
+         sending_task,
+         sender,
+      } = task::block_on(Self::async_connect(address, token))?;
 
-      self.socket_threads.insert(token, Some((receiving_thread, sending_thread, tx)));
+      self.socket_threads.insert(
+         token,
+         Some(Slot {
+            receiving_task,
+            sending_task,
+            sender,
+         }),
+      );
 
       Ok(())
    }
 
    pub async fn wait(&mut self) {
       // Take all senders
-      let senders = self.socket_threads.iter_mut().filter_map(|(_, v)| {
-         if let Some((_, send, _)) = v.take() {
-            Some(send)
+      let senders = self.socket_threads.iter_mut().filter_map(|(_, slot)| {
+         if let Some(slot) = slot.take() {
+            Some(slot.sending_task)
          } else {
             None
          }
