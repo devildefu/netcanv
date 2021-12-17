@@ -6,6 +6,7 @@ use netcanv_renderer::Font as FontTrait;
 use paws::{point, vector, AlignH, AlignV, Color, Layout, LineCap, Rect, Renderer};
 
 use crate::backend::Font;
+#[cfg(not(any(target_arch = "wasm32")))]
 use crate::clipboard;
 use crate::ui::*;
 
@@ -367,26 +368,35 @@ impl TextField {
          }
 
          if input.action((Modifier::CTRL, VirtualKeyCode::C)) == (true, true) {
+            #[cfg(not(any(target_arch = "wasm32")))]
             catch!(
                clipboard::copy_string(self.selection_text().to_owned()),
                return process_result
             );
+            todo!()
          }
 
          if input.action((Modifier::CTRL, VirtualKeyCode::V)) == (true, true) {
+            #[cfg(not(any(target_arch = "wasm32")))]
             if let Ok(clipboard) = clipboard::paste_string() {
                let cursor = self.selection.cursor();
                self.text.replace_range(self.selection.normalize(), &clipboard);
                self.selection.move_to(TextPosition(cursor + clipboard.len()));
             }
+
+            todo!()
          }
 
          if input.action((Modifier::CTRL, VirtualKeyCode::X)) == (true, true) {
+            #[cfg(not(any(target_arch = "wasm32")))]
             catch!(
                clipboard::copy_string(self.selection_text().to_owned()),
                return process_result
             );
+
             self.backspace();
+
+            todo!()
          }
 
          // NB: This is actually backspace, but the winit enum has a misnomer.

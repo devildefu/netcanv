@@ -1,11 +1,10 @@
 use netcanv_renderer::paws::Ui;
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
+use std::rc::Rc;
 use web_sys::HtmlImageElement;
-use winit::{
-   event_loop::EventLoop,
-   platform::web::WindowExtWebSys,
-   window::{Window, WindowBuilder},
-};
+use winit::event_loop::EventLoop;
+use winit::platform::web::WindowExtWebSys;
+use winit::window::{Window, WindowBuilder};
 
 mod common;
 mod font;
@@ -17,6 +16,7 @@ pub use crate::font::*;
 pub use crate::framebuffer::*;
 pub use crate::image::*;
 pub use crate::rendering::*;
+pub use winit;
 
 pub struct CanvasBackend {
    context: Rc<web_sys::CanvasRenderingContext2d>,
