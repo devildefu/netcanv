@@ -29,7 +29,7 @@ fn main() {
             "An error occured:\n{}\n\nIf you think this is a bug, please file an issue on GitHub. https://github.com/liquidev/netcanv",
             payload
          );
-         eprintln!("main() returned with an Err:\n{}", payload);
+         log::info!("main() returned with an Err:\n{}", payload);
          MessageDialog::new()
             .set_title("NetCanv - Error")
             .set_text(&message)

@@ -129,7 +129,7 @@ pub fn main() -> anyhow::Result<()> {
                // See? Told ya.
                app = Some(app.take().unwrap().next_state());
             }) {
-               Err(error) => eprintln!("render error: {}", error),
+               Err(error) => log::info!("render error: {}", error),
                _ => (),
             }
             input.finish_frame();

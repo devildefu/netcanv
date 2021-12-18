@@ -1,8 +1,8 @@
 //! The Brush tool. Allows for painting, as well as erasing pixels from the canvas.
 
+use instant::Instant;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::time::Instant;
 
 use crate::backend::winit::event::MouseButton;
 use netcanv_renderer::paws::{

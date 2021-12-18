@@ -217,7 +217,7 @@ where
       if let Some(Some(Slot { sender, .. })) = self.socket_threads.get(&token) {
          if let Err(e) = sender.unbounded_send(packet) {
             bus::push(Fatal(anyhow::anyhow!("internal error")));
-            eprintln!("{:?}", e);
+            log::info!("{:?}", e);
          }
       }
    }
@@ -241,7 +241,7 @@ where
             Err(WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake)) => {
                bus::push(Fatal(anyhow::anyhow!("Matchmaker has been closed")));
             }
-            _ => eprintln!("Got {:?}, ignored", msg),
+            _ => log::info!("Got {:?}, ignored", msg),
          }
       }
 

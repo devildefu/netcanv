@@ -42,10 +42,6 @@ serde = { version = "1.0.123", features = ["derive"] }
 bincode = "1.3.2"
 url = "2.2.2"
 
-async-std = "1.10.0"
-async-tungstenite = { version = "0.16.0", features = ["async-std-runtime"] }
-futures = "0.3.17"
-
 # Multithreading
 nysa = "0.2.2"
 
@@ -66,14 +62,30 @@ instant = "0.1.12"
 native-dialog = "0.5.5"
 webp = { version = "0.2.0", features = ["img"] }
 arboard = "2.0.1"
+async-std = "1.10.0"
+async-tungstenite = { version = "0.16.0", features = ["async-std-runtime"] }
+futures = "0.3.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.78"
-web-sys = { version = "0.3.55", features = [ "HtmlCanvasElement", "Window", "Storage" ] }
 gloo-storage = "0.2.0"
 console_log = "0.2.0"
 log = "0.4.14"
 console_error_panic_hook = "0.1.6"
+js-sys = "0.3.55"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.55"
+features = [
+   "HtmlCanvasElement",
+   "Window",
+   "Storage",
+   "WebSocket",
+   "MessageEvent",
+   "BinaryType",
+   "Worker",
+   "DedicatedWorkerGlobalScope"
+]
 
 [profile.release]
 lto = "fat"

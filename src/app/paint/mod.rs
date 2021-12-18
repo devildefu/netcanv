@@ -2,12 +2,12 @@
 
 mod tools;
 
+use instant::{Duration, Instant};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
 
 // use native_dialog::FileDialog;
 use netcanv_renderer::paws::{
@@ -615,7 +615,7 @@ impl State {
             }
          }
          MessageKind::ChunkPositions(positions) => {
-            eprintln!("received {} chunk positions", positions.len());
+            log::info!("received {} chunk positions", positions.len());
             for chunk_position in positions {
                self.chunk_downloads.insert(chunk_position, ChunkDownload::NotDownloaded);
             }
@@ -625,7 +625,7 @@ impl State {
             self.peer.send_select_tool(self.clone_tool_name())?;
          }
          MessageKind::Chunks(chunks) => {
-            eprintln!("received {} chunks", chunks.len());
+            log::info!("received {} chunks", chunks.len());
             for (chunk_position, image_data) in chunks {
                self.canvas_data(ui, chunk_position, &image_data);
                self.chunk_downloads.insert(chunk_position, ChunkDownload::Downloaded);
@@ -652,7 +652,7 @@ impl State {
             previous_tool,
             tool,
          } => {
-            eprintln!("{} selected tool {}", address, tool);
+            log::info!("{} selected tool {}", address, tool);
             // Deselect the old tool.
             if let Some(tool) = previous_tool {
                if let Some(&tool_id) = self.tools_by_name.get(&tool) {
@@ -669,7 +669,7 @@ impl State {
             }
             // Select the new tool.
             if let Some(&tool_id) = self.tools_by_name.get(&tool) {
-               eprintln!(" - valid tool with ID {}", tool_id);
+               log::info!(" - valid tool with ID {}", tool_id);
                let mut tools = self.tools.borrow_mut();
                let tool = &mut tools[tool_id];
                tool.network_peer_activate(Net::new(&mut self.peer), address)?;
@@ -717,9 +717,9 @@ impl AppState for State {
       if self.paint_canvas.filename().is_some()
          && self.last_autosave.elapsed() > Self::AUTOSAVE_INTERVAL
       {
-         eprintln!("autosaving chunks");
+         log::info!("autosaving chunks");
          catch!(self.paint_canvas.save(None));
-         eprintln!("autosave complete");
+         log::info!("autosave complete");
          self.last_autosave = Instant::now();
       }
 

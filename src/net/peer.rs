@@ -226,18 +226,18 @@ impl Peer {
    fn matchmaker_packet(&mut self, packet: mm::Packet) -> anyhow::Result<()> {
       match packet {
          mm::Packet::RoomId(room_id) => {
-            eprintln!("got free room ID: {}", room_id);
+            log::info!("got free room ID: {}", room_id);
             self.room_id = Some(room_id);
             self.setup_relay()?;
          }
          mm::Packet::HostAddress(address) => {
-            eprintln!("got host address: {}", address);
+            log::info!("got host address: {}", address);
             self.host = Some(address);
             self.setup_relay()?;
          }
          mm::Packet::ClientAddress(_address) => (),
          mm::Packet::Relayed(_, payload) if payload.len() == 0 => {
-            eprintln!("got successful packet relay connection");
+            log::info!("got successful packet relay connection");
             self.state = if self.is_host {
                State::HostingRoomRelayed
             } else {
@@ -268,7 +268,7 @@ impl Peer {
    /// Sets up the packet relay.
    fn setup_relay(&mut self) -> anyhow::Result<()> {
       let relay_target = (!self.is_host).then(|| self.host.unwrap());
-      eprintln!("requesting relay to host {:?}", relay_target);
+      log::info!("requesting relay to host {:?}", relay_target);
       self.send_to_matchmaker(mm::Packet::RequestRelay(relay_target))?;
       self.state = State::WaitingForRelay;
       Ok(())
@@ -286,14 +286,14 @@ impl Peer {
          // 0.1.0
          // -----
          cl::Packet::Hello(nickname) => {
-            eprintln!("{} ({}) joined", nickname, author);
+            log::info!("{} ({}) joined", nickname, author);
             self.send_to_client(Some(author), cl::Packet::HiThere(self.nickname.clone()))?;
             self.send_to_client(Some(author), cl::Packet::Version(cl::PROTOCOL_VERSION))?;
             self.add_mate(author, nickname.clone());
             self.send_message(MessageKind::Joined(nickname, author));
          }
          cl::Packet::HiThere(nickname) => {
-            eprintln!("{} ({}) is in the room", nickname, author);
+            log::info!("{} ({}) is in the room", nickname, author);
             self.add_mate(author, nickname);
          }
          cl::Packet::Reserved1 => (),
@@ -363,7 +363,7 @@ impl Peer {
    /// Requests chunk data from the host.
    pub fn download_chunks(&self, positions: Vec<(i32, i32)>) -> anyhow::Result<()> {
       assert!(self.host.is_some(), "only non-hosts can download chunks");
-      eprintln!("downloading {} chunks from the host", positions.len());
+      log::info!("downloading {} chunks from the host", positions.len());
       self.send_to_client(self.host, cl::Packet::GetChunks(positions))
    }
 

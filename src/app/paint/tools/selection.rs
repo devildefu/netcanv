@@ -1,7 +1,7 @@
+use instant::Instant;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::SocketAddr;
-use std::time::Instant;
 
 use crate::backend::winit::event::{MouseButton, VirtualKeyCode};
 use image::io::Reader;

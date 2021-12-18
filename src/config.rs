@@ -111,8 +111,8 @@ impl UserConfig {
          let config: Self = match toml::from_str(&file) {
             Ok(config) => config,
             Err(error) => {
-               eprintln!("error while deserializing config file: {}", error);
-               eprintln!("falling back to default config");
+               log::info!("error while deserializing config file: {}", error);
+               log::info!("falling back to default config");
                return Ok(Self::default());
             }
          };
@@ -125,7 +125,8 @@ impl UserConfig {
 
    #[cfg(target_arch = "wasm32")]
    pub fn load_or_create() -> anyhow::Result<Self> {
-      use gloo_storage::{errors::StorageError, LocalStorage, Storage};
+      use gloo_storage::errors::StorageError;
+      use gloo_storage::{LocalStorage, Storage};
       let mut config = Self::default();
 
       /// Returns the T that is in localStorage, or if it doesn't find it, sets key to default value and returns it.

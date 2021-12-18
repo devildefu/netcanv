@@ -440,12 +440,12 @@ impl AppState for State {
 
       for message in &bus::retrieve_all::<Error>() {
          let error = message.consume().0;
-         eprintln!("error: {}", error);
+         log::info!("error: {}", error);
          self.status = Status::Error(error.to_string());
       }
       for message in &bus::retrieve_all::<Fatal>() {
          let fatal = message.consume().0;
-         eprintln!("fatal: {}", fatal);
+         log::info!("fatal: {}", fatal);
          self.status = Status::Error(format!("Fatal: {}", fatal));
       }
    }
@@ -454,7 +454,7 @@ impl AppState for State {
       let mut connected = false;
       if let Some(peer) = &self.peer {
          for message in &bus::retrieve_all::<peer::Connected>() {
-            eprintln!("connection established");
+            log::info!("connection established");
             if message.peer == peer.token() {
                message.consume();
                connected = true;
