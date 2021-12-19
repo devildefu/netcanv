@@ -126,15 +126,15 @@ where
       address: &str,
       default_port: u16,
    ) -> anyhow::Result<url::Url> {
-      let mut url = url::Url::parse(&format!("ws://{}", address))?;
+      let url = url::Url::parse(address)?;
 
-      if let None = url.port() {
-         // Url::set_port on Error does nothing, so it is fine to ignore it
-         #[allow(unused_must_use)]
-         {
-            url.set_port(Some(default_port));
-         }
-      }
+      // if let None = url.port() {
+      //    // Url::set_port on Error does nothing, so it is fine to ignore it
+      //    #[allow(unused_must_use)]
+      //    {
+      //       url.set_port(Some(default_port));
+      //    }
+      // }
 
       Ok(url)
    }
