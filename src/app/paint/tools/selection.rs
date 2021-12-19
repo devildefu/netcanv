@@ -147,6 +147,7 @@ impl SelectionTool {
       if let Some(image) = self.selection.download_rgba() {
          catch!(clipboard::copy_image(image));
       }
+      #[cfg(target_arch = "wasm32")]
       todo!()
    }
 
@@ -169,6 +170,7 @@ impl SelectionTool {
          catch!(net.send(self, None, Packet::Paste((x, y), bytes)));
          catch!(self.send_rect_packet(net));
       }
+      #[cfg(target_arch = "wasm32")]
       todo!()
    }
 
