@@ -2,9 +2,9 @@ name: Build netcanv and publish it on github pages
 
 on:
   push:
-    branches: [wasm2, ci/ci]
+    branches: [wasm2-websocket, wasm2, ci/ci]
   pull_request:
-    branches: [wasm2, ci/ci]
+    branches: [wasm2-websocket, wasm2, ci/ci]
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,14 +21,14 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      
+
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: nightly
           override: true
-  
+
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
