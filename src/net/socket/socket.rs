@@ -14,6 +14,7 @@ use async_std::net::TcpStream;
 use async_std::task::{self, JoinHandle};
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
+use async_tungstenite::async_std::ConnectStream;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{future, SinkExt, StreamExt};
@@ -223,7 +224,7 @@ where
    }
 
    async fn receive_loop(
-      mut stream: SplitStream<WebSocketStream<TcpStream>>,
+      mut stream: SplitStream<WebSocketStream<ConnectStream>>,
       token: ConnectionToken,
    ) {
       use async_tungstenite::tungstenite::{error::ProtocolError, Error as WsError};
@@ -250,7 +251,7 @@ where
 
    async fn send_loop(
       mut rx: UnboundedReceiver<SendPacket<T>>,
-      mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+      mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
       token: ConnectionToken,
    ) {
       'send: while let Some(message) = rx.next().await {
