@@ -1,10 +1,8 @@
 use js_sys::{ArrayBuffer, Uint8Array};
 use once_cell::sync::Lazy;
-use std::{
-   cell::RefCell,
-   rc::Rc,
-   sync::atomic::{AtomicUsize, Ordering},
-};
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use wasm_bindgen::prelude::*;
 use web_sys::{CanvasRenderingContext2d, FontFace};
 
@@ -99,7 +97,7 @@ impl netcanv_renderer::Font for Font {
    }
 
    fn height(&self) -> f32 {
-      todo!()
+      self.size
    }
 
    fn text_width(&self, text: &str) -> f32 {

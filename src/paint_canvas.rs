@@ -208,24 +208,26 @@ impl Chunk {
    /// This first checks whether the number of bytes of PNG data of the sub-chunk exceeds
    /// [`Chunk::MAX_PNG_SIZE`]. If so, WebP is used. Otherwise PNG is used.
    fn network_data(&mut self, sub: usize) -> Option<&[u8]> {
+      // NOTE: webp crate doesn't compile on wasm target, so webp support must be removed
+
       let png_data = self.png_data(sub)?;
       let png_size = png_data.len();
-      if png_size > Self::MAX_PNG_SIZE {
-         log::info!(
-            "  png data is larger than {} KiB, fetching webp data instead",
-            Self::MAX_PNG_SIZE / 1024
-         );
-         let webp_data = self.webp_data(sub)?;
-         log::info!(
-            "  the webp data came out to be {}% the size of the png data",
-            (webp_data.len() as f32 / png_size as f32 * 100.0) as i32
-         );
-         Some(webp_data)
-      } else {
-         // Need to call the function here a second time because otherwise the borrow checker
-         // gets mad.
-         self.png_data(sub)
-      }
+      // if png_size > Self::MAX_PNG_SIZE {
+      //    log::info!(
+      //       "  png data is larger than {} KiB, fetching webp data instead",
+      //       Self::MAX_PNG_SIZE / 1024
+      //    );
+      //    let webp_data = self.webp_data(sub)?;
+      //    log::info!(
+      //       "  the webp data came out to be {}% the size of the png data",
+      //       (webp_data.len() as f32 / png_size as f32 * 100.0) as i32
+      //    );
+      //    Some(webp_data)
+      // } else {
+      // Need to call the function here a second time because otherwise the borrow checker
+      // gets mad.
+      self.png_data(sub)
+      // }
    }
 
    /// Decodes a PNG file into the given sub-chunk.
@@ -274,12 +276,14 @@ impl Chunk {
    /// Decodes a PNG or WebP file into the given sub-chunk, depending on what's actually stored in
    /// `data`.
    fn decode_network_data(&mut self, sub: usize, data: &[u8]) -> anyhow::Result<()> {
+      // NOTE: webp wasm
+
       // Try WebP first.
-      if let Ok(()) = self.decode_webp_data(sub, data) {
-         Ok(())
-      } else {
-         self.decode_png_data(sub, data)
-      }
+      // if let Ok(()) = self.decode_webp_data(sub, data) {
+      //    Ok(())
+      // } else {
+      self.decode_png_data(sub, data)
+      // }
    }
 
    /// Marks the given sub-chunk within this master chunk as dirty - that is, invalidates any
@@ -370,15 +374,21 @@ impl PaintCanvas {
             let master_chunk = (x, y);
             self.ensure_chunk_exists(renderer, master_chunk);
             let chunk = self.chunks.get_mut(&master_chunk).unwrap();
-            renderer.push();
-            renderer.translate(vector(
-               -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
-               -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
-            ));
+            // renderer.push();
+            // renderer.translate(vector(
+            //    -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
+            //    -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
+            // ));
             renderer.draw_to(&chunk.framebuffer, |renderer| {
+               renderer.push();
+               renderer.translate(vector(
+                  -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
+                  -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
+               ));
                callback(renderer);
+               renderer.pop();
             });
-            renderer.pop();
+            // renderer.pop();
             for i in 0..Chunk::SUB_COUNT {
                chunk.mark_dirty(i);
             }

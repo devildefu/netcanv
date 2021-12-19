@@ -1,7 +1,11 @@
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+   use log::LevelFilter;
    use native_dialog::{MessageDialog, MessageType};
+   use simplelog::{Config, SimpleLogger};
    use std::fmt::Write;
+
+   let _ = SimpleLogger::init(LevelFilter::Info, Config::default());
 
    let default_panic_hook = std::panic::take_hook();
    std::panic::set_hook(Box::new(move |panic_info| {

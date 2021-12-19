@@ -1,5 +1,5 @@
-use netcanv_renderer::paws::{AlignH, AlignV, Renderer};
-use netcanv_renderer::RenderBackend;
+use netcanv_renderer::paws::{self, AlignH, AlignV, Renderer};
+use netcanv_renderer::{BlendMode, RenderBackend};
 use std::rc::Rc;
 
 use crate::common::*;
@@ -85,17 +85,31 @@ impl Renderer for CanvasBackend {
 
       self.set_fill_color(color);
 
-      if radius > 0.0f32 {
-         self.context.set_line_join("round");
-         self.context.set_line_width(radius as _);
-      }
+      let x = rect.x() as f64;
+      let y = rect.y() as f64;
+      let width = rect.width() as f64;
+      let height = rect.height() as f64;
+      let radius = radius as f64;
+      let ctx = &self.context;
 
-      self.context.fill_rect(
-         rect.x() as _,
-         rect.y() as _,
-         rect.width() as _,
-         rect.height() as _,
+      ctx.begin_path();
+      ctx.move_to(x + radius, y);
+      ctx.line_to(x + width - radius, y);
+      ctx.arc_to(x + width, y, x + width, y + radius, radius);
+      ctx.line_to(x + width, y + height - radius);
+      ctx.arc_to(
+         x + width,
+         y + height,
+         x + width - radius,
+         y + height,
+         radius,
       );
+      ctx.line_to(x + radius, y + height);
+      ctx.arc_to(x, y + height, x, y + height - radius, radius);
+      ctx.line_to(x, y + radius);
+      ctx.arc_to(x, y, x + radius, y, radius);
+      ctx.close_path();
+      ctx.fill();
 
       self.pop();
    }
@@ -126,13 +140,19 @@ impl Renderer for CanvasBackend {
       ctx.begin_path();
       ctx.move_to(x + radius, y);
       ctx.line_to(x + width - radius, y);
-      ctx.quadratic_curve_to(x + width, y, x + width, y + radius);
+      ctx.arc_to(x + width, y, x + width, y + radius, radius);
       ctx.line_to(x + width, y + height - radius);
-      ctx.quadratic_curve_to(x + width, y + height, x + width - radius, y + height);
+      ctx.arc_to(
+         x + width,
+         y + height,
+         x + width - radius,
+         y + height,
+         radius,
+      );
       ctx.line_to(x + radius, y + height);
-      ctx.quadratic_curve_to(x, y + height, x, y + height - radius);
+      ctx.arc_to(x, y + height, x, y + height - radius, radius);
       ctx.line_to(x, y + radius);
-      ctx.quadratic_curve_to(x, y, x + radius, y);
+      ctx.arc_to(x, y, x + radius, y, radius);
       ctx.close_path();
       ctx.stroke();
 
@@ -212,12 +232,17 @@ impl RenderBackend for CanvasBackend {
    type Image = Image;
    type Framebuffer = Framebuffer;
 
-   fn create_framebuffer(&mut self, width: u32, height: u32) -> Self::Framebuffer {
-      todo!()
+   fn create_framebuffer(&mut self, width: u32, height: u32) -> Framebuffer {
+      log::info!("create framebuffer {} {}", width, height);
+      Framebuffer::new(width, height)
    }
 
    fn draw_to(&mut self, framebuffer: &Self::Framebuffer, f: impl FnOnce(&mut Self)) {
-      todo!()
+      let framebuffer_context = framebuffer.context.take().unwrap();
+      let old_context = std::mem::replace(&mut self.context, framebuffer_context);
+      f(self);
+      let framebuffer_context = std::mem::replace(&mut self.context, old_context);
+      framebuffer.context.set(Some(framebuffer_context));
    }
 
    fn clear(&mut self, color: netcanv_renderer::paws::Color) {
@@ -241,15 +266,41 @@ impl RenderBackend for CanvasBackend {
       position: netcanv_renderer::paws::Rect,
       framebuffer: &Self::Framebuffer,
    ) {
-      todo!()
+      // self.outline(
+      //    position,
+      //    paws::Color {
+      //       r: 255,
+      //       g: 0,
+      //       b: 0,
+      //       a: 255,
+      //    },
+      //    0.0,
+      //    2.0,
+      // );
+
+      self.context.draw_image_with_html_canvas_element(
+         &framebuffer.canvas,
+         position.x() as _,
+         position.y() as _,
+      );
    }
 
    fn scale(&mut self, scale: netcanv_renderer::paws::Vector) {
-      todo!()
+      self.context.scale(scale.x as _, scale.y as _);
    }
 
    fn set_blend_mode(&mut self, new_blend_mode: netcanv_renderer::BlendMode) {
-      todo!()
+      let mode = match new_blend_mode {
+         BlendMode::Add => "lighter",
+         BlendMode::Alpha => "source-over",
+         BlendMode::Clear => {
+            log::info!("clear not yet implemented");
+            "source-over"
+         }
+         BlendMode::Invert => "difference",
+      };
+
+      self.context.set_global_composite_operation(mode);
    }
 
    fn fill_circle(
@@ -258,7 +309,21 @@ impl RenderBackend for CanvasBackend {
       radius: f32,
       color: netcanv_renderer::paws::Color,
    ) {
-      todo!()
+      self.push();
+
+      self.set_stroke_color(color);
+
+      self.context.begin_path();
+      self.context.arc(
+         center.x as _,
+         center.y as _,
+         radius as _,
+         0.0f64,
+         2.0f64 * std::f64::consts::PI,
+      );
+      self.context.fill();
+
+      self.pop();
    }
 
    fn outline_circle(
@@ -268,6 +333,21 @@ impl RenderBackend for CanvasBackend {
       color: netcanv_renderer::paws::Color,
       thickness: f32,
    ) {
-      todo!()
+      self.push();
+
+      self.set_stroke_color(color);
+      self.context.set_line_width(thickness as _);
+
+      self.context.begin_path();
+      self.context.arc(
+         center.x as _,
+         center.y as _,
+         radius as _,
+         0.0f64,
+         2.0f64 * std::f64::consts::PI,
+      );
+      self.context.stroke();
+
+      self.pop();
    }
 }

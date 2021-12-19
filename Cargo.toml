@@ -57,6 +57,7 @@ netcanv-renderer-canvas = { path = "netcanv-renderer-canvas", optional = true }
 netcanv-protocol = { path = "netcanv-protocol" }
 
 instant = "0.1.12"
+log = "0.4.14"
 
 [target.'cfg(not(any(target_arch = "wasm32")))'.dependencies]
 native-dialog = "0.5.5"
@@ -65,12 +66,12 @@ arboard = "2.0.1"
 async-std = "1.10.0"
 async-tungstenite = { version = "0.16.0", features = ["async-std-runtime"] }
 futures = "0.3.17"
+simplelog = "0.11.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.78"
 gloo-storage = "0.2.0"
 console_log = "0.2.0"
-log = "0.4.14"
 console_error_panic_hook = "0.1.6"
 js-sys = "0.3.55"
 
