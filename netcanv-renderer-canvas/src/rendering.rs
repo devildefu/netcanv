@@ -293,10 +293,7 @@ impl RenderBackend for CanvasBackend {
       let mode = match new_blend_mode {
          BlendMode::Add => "lighter",
          BlendMode::Alpha => "source-over",
-         BlendMode::Clear => {
-            log::info!("clear not yet implemented");
-            "source-over"
-         }
+         BlendMode::Clear => "destination-out",
          BlendMode::Invert => "difference",
       };
 
