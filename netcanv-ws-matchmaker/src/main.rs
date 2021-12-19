@@ -287,7 +287,7 @@ fn disconnect(
 /// Task dealing with sending messages to clients
 async fn send_loop(
    mut rx: UnboundedReceiver<Message>,
-   mut sink: SplitSink<WebSocketStream<ConnectStream>, Message>,
+   mut sink: SplitSink<WebSocketStream<TcpStream>, Message>,
 ) -> anyhow::Result<()> {
    while let Some(msg) = rx.next().await {
       if let Err(e) = sink.send(msg).await {
