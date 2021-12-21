@@ -158,6 +158,7 @@ impl UserConfig {
       config.lobby.nickname = get_or_set("nickname", config.lobby.nickname)?;
       config.lobby.matchmaker = get_or_set("matchmaker", config.lobby.matchmaker)?;
       config.ui.color_scheme = get_or_set("color_scheme", config.ui.color_scheme)?;
+      config.ui.toolbar_position = get_or_set("toolbar_position", config.ui.toolbar_position)?;
 
       Ok(config)
    }
