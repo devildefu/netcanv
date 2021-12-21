@@ -13,6 +13,7 @@ mod image;
 mod rendering;
 mod state;
 
+pub use crate::common::webp;
 pub use crate::font::*;
 pub use crate::framebuffer::*;
 pub use crate::image::*;

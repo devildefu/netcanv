@@ -179,27 +179,30 @@ impl Chunk {
    ///
    /// Semantics are similar to [`Chunk::png_data`].
    fn webp_data(&mut self, sub: usize) -> Option<&[u8]> {
-      todo!()
-      /*
-      if self.webp_data[sub].is_none() {
-         log::info!("  webp data doesn't exist, encoding");
-         let chunk_image = self.download_image();
-         for sub in 0..Self::SUB_COUNT {
-            let (x, y) = Self::sub_screen_position(sub);
-            let sub_image = chunk_image.view(x, y, Self::SIZE.0, Self::SIZE.1).to_image();
-            if Self::image_is_empty(&sub_image) {
-               self.non_empty_subs[sub] = false;
-               continue;
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+         if self.webp_data[sub].is_none() {
+            log::info!("  webp data doesn't exist, encoding");
+            let chunk_image = self.download_image();
+            for sub in 0..Self::SUB_COUNT {
+               let (x, y) = Self::sub_screen_position(sub);
+               let sub_image = chunk_image.view(x, y, Self::SIZE.0, Self::SIZE.1).to_image();
+               if Self::image_is_empty(&sub_image) {
+                  self.non_empty_subs[sub] = false;
+                  continue;
+               }
+               let image = DynamicImage::ImageRgba8(sub_image);
+               let encoder = webp::Encoder::from_image(&image).unwrap();
+               let bytes = encoder.encode(Self::WEBP_QUALITY);
+               self.webp_data[sub] = Some(bytes.to_owned());
+               self.non_empty_subs[sub] = true;
             }
-            let image = DynamicImage::ImageRgba8(sub_image);
-            let encoder = webp::Encoder::from_image(&image).unwrap();
-            let bytes = encoder.encode(Self::WEBP_QUALITY);
-            self.webp_data[sub] = Some(bytes.to_owned());
-            self.non_empty_subs[sub] = true;
          }
+         self.webp_data[sub].as_deref()
       }
-      self.webp_data[sub].as_deref()
-      */
+
+      #[cfg(target_arch = "wasm32")]
+      todo!()
    }
 
    /// Returns the image file data of the given sub-chunk within this master chunk, in a format
@@ -208,26 +211,32 @@ impl Chunk {
    /// This first checks whether the number of bytes of PNG data of the sub-chunk exceeds
    /// [`Chunk::MAX_PNG_SIZE`]. If so, WebP is used. Otherwise PNG is used.
    fn network_data(&mut self, sub: usize) -> Option<&[u8]> {
-      // NOTE: webp crate doesn't compile on wasm target, so webp support must be removed
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+         let png_data = self.png_data(sub)?;
+         let png_size = png_data.len();
+         if png_size > Self::MAX_PNG_SIZE {
+            log::info!(
+               "  png data is larger than {} KiB, fetching webp data instead",
+               Self::MAX_PNG_SIZE / 1024
+            );
+            let webp_data = self.webp_data(sub)?;
+            log::info!(
+               "  the webp data came out to be {}% the size of the png data",
+               (webp_data.len() as f32 / png_size as f32 * 100.0) as i32
+            );
+            Some(webp_data)
+         } else {
+            // Need to call the function here a second time because otherwise the borrow checker
+            // gets mad.
+            self.png_data(sub)
+         }
+      }
 
-      let png_data = self.png_data(sub)?;
-      let png_size = png_data.len();
-      // if png_size > Self::MAX_PNG_SIZE {
-      //    log::info!(
-      //       "  png data is larger than {} KiB, fetching webp data instead",
-      //       Self::MAX_PNG_SIZE / 1024
-      //    );
-      //    let webp_data = self.webp_data(sub)?;
-      //    log::info!(
-      //       "  the webp data came out to be {}% the size of the png data",
-      //       (webp_data.len() as f32 / png_size as f32 * 100.0) as i32
-      //    );
-      //    Some(webp_data)
-      // } else {
-      // Need to call the function here a second time because otherwise the borrow checker
-      // gets mad.
-      self.png_data(sub)
-      // }
+      #[cfg(target_arch = "wasm32")]
+      {
+         self.png_data(sub)
+      }
    }
 
    /// Decodes a PNG file into the given sub-chunk.
@@ -257,33 +266,49 @@ impl Chunk {
 
    /// Decodes a WebP file into the given sub-chunk.
    fn decode_webp_data(&mut self, sub: usize, data: &[u8]) -> anyhow::Result<()> {
-      todo!()
-      /*
-      let image = match webp::Decoder::new(data).decode() {
-         Some(image) => image.to_image(),
-         None => anyhow::bail!("got non-webp image"),
+      #[cfg(not(any(feature = "renderer-canvas", not(target_arch = "wasm32"))))]
+      compile_error!("Netcanv for target wasm32 requires canvas renderer to support webp");
+
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+         let image = match webp::Decoder::new(data).decode() {
+            Some(image) => image.to_image(),
+            None => anyhow::bail!("got non-webp image"),
+         }
+         .into_rgba8();
+         if !Self::image_is_empty(&image) {
+            self.upload_image(image, Self::sub_screen_position(sub));
+            self.webp_data[sub] = Some(Vec::from(data));
+            self.non_empty_subs[sub] = true;
+         }
       }
-      .into_rgba8();
-      if !Self::image_is_empty(&image) {
-         self.upload_image(image, Self::sub_screen_position(sub));
-         self.webp_data[sub] = Some(Vec::from(data));
-         self.non_empty_subs[sub] = true;
+
+      #[cfg(feature = "renderer-canvas")]
+      {
+         let image = match netcanv_renderer_canvas::webp::decode(Self::SIZE, data) {
+            Some(image) => image,
+            None => anyhow::bail!("got non-webp image"),
+         };
+         let image = RgbaImage::from_raw(Self::SIZE.0, Self::SIZE.1, image).unwrap();
+         if !Self::image_is_empty(&image) {
+            self.upload_image(image, Self::sub_screen_position(sub));
+            self.webp_data[sub] = Some(Vec::from(data));
+            self.non_empty_subs[sub] = true;
+         }
       }
+
       Ok(())
-      */
    }
 
    /// Decodes a PNG or WebP file into the given sub-chunk, depending on what's actually stored in
    /// `data`.
    fn decode_network_data(&mut self, sub: usize, data: &[u8]) -> anyhow::Result<()> {
-      // NOTE: webp wasm
-
       // Try WebP first.
-      // if let Ok(()) = self.decode_webp_data(sub, data) {
-      //    Ok(())
-      // } else {
-      self.decode_png_data(sub, data)
-      // }
+      if let Ok(()) = self.decode_webp_data(sub, data) {
+         Ok(())
+      } else {
+         self.decode_png_data(sub, data)
+      }
    }
 
    /// Marks the given sub-chunk within this master chunk as dirty - that is, invalidates any
