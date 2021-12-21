@@ -1,4 +1,4 @@
-use netcanv_renderer::paws::Ui;
+use netcanv_renderer::paws::{self, Ui};
 use std::collections::HashMap;
 use std::rc::Rc;
 use web_sys::HtmlImageElement;
@@ -11,17 +11,21 @@ mod font;
 mod framebuffer;
 mod image;
 mod rendering;
+mod state;
 
 pub use crate::font::*;
 pub use crate::framebuffer::*;
 pub use crate::image::*;
 pub use crate::rendering::*;
+use crate::state::*;
 pub use winit;
 
 pub struct CanvasBackend {
    context: Rc<web_sys::CanvasRenderingContext2d>,
    window: winit::window::Window,
    cache: HashMap<Vec<u8>, HtmlImageElement>,
+   states: Vec<State>,
+   current_state: usize,
 }
 
 impl CanvasBackend {
@@ -42,10 +46,14 @@ impl CanvasBackend {
          .dyn_into::<web_sys::CanvasRenderingContext2d>()
          .unwrap();
 
+      let states = vec![Default::default()];
+
       Ok(Self {
          context: Rc::new(context),
          window: winit_window,
          cache: HashMap::new(),
+         states,
+         current_state: 0,
       })
    }
 

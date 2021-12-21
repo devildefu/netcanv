@@ -374,21 +374,15 @@ impl PaintCanvas {
             let master_chunk = (x, y);
             self.ensure_chunk_exists(renderer, master_chunk);
             let chunk = self.chunks.get_mut(&master_chunk).unwrap();
-            // renderer.push();
-            // renderer.translate(vector(
-            //    -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
-            //    -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
-            // ));
+            renderer.push();
+            renderer.translate(vector(
+               -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
+               -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
+            ));
             renderer.draw_to(&chunk.framebuffer, |renderer| {
-               renderer.push();
-               renderer.translate(vector(
-                  -x as f32 * Chunk::SURFACE_SIZE.0 as f32,
-                  -y as f32 * Chunk::SURFACE_SIZE.0 as f32,
-               ));
                callback(renderer);
-               renderer.pop();
             });
-            // renderer.pop();
+            renderer.pop();
             for i in 0..Chunk::SUB_COUNT {
                chunk.mark_dirty(i);
             }

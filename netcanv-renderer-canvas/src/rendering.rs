@@ -6,6 +6,7 @@ use crate::common::*;
 use crate::font::Font;
 use crate::framebuffer::Framebuffer;
 use crate::image::Image;
+use crate::state::State;
 use crate::CanvasBackend;
 
 impl CanvasBackend {
@@ -51,14 +52,19 @@ impl Renderer for CanvasBackend {
    type Font = Font;
 
    fn push(&mut self) {
+      self.states.push(Default::default());
+      self.current_state += 1;
       self.context.save();
    }
 
    fn pop(&mut self) {
       self.context.restore();
+      self.current_state -= 1;
+      self.states.pop();
    }
 
    fn translate(&mut self, vec: netcanv_renderer::paws::Vector) {
+      self.states[self.current_state].translation = vec;
       self.context.translate(vec.x as _, vec.y as _);
    }
 
@@ -238,9 +244,24 @@ impl RenderBackend for CanvasBackend {
    }
 
    fn draw_to(&mut self, framebuffer: &Self::Framebuffer, f: impl FnOnce(&mut Self)) {
+      // Get the current state, because netcanv requires renderer to have
+      // global state. That doesn't works with Canvas API, so we need to do it ourselves.
+      let State {
+         translation,
+         scaling,
+      } = self.states[self.current_state];
+
       let framebuffer_context = framebuffer.context.take().unwrap();
       let old_context = std::mem::replace(&mut self.context, framebuffer_context);
+
+      // Apply current state, because Canvas API doesn't provide us function to
+      // get entire canvas state and set it.
+      self.context.save();
+      self.context.translate(translation.x as _, translation.y as _);
+      self.context.scale(scaling.x as _, scaling.y as _);
       f(self);
+      self.context.restore();
+
       let framebuffer_context = std::mem::replace(&mut self.context, old_context);
       framebuffer.context.set(Some(framebuffer_context));
    }
@@ -278,14 +299,17 @@ impl RenderBackend for CanvasBackend {
       //    2.0,
       // );
 
-      self.context.draw_image_with_html_canvas_element(
+      self.context.draw_image_with_html_canvas_element_and_dw_and_dh(
          &framebuffer.canvas,
          position.x() as _,
          position.y() as _,
+         position.width() as _,
+         position.height() as _,
       );
    }
 
    fn scale(&mut self, scale: netcanv_renderer::paws::Vector) {
+      self.states[self.current_state].scaling = scale;
       self.context.scale(scale.x as _, scale.y as _);
    }
 
