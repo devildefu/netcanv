@@ -1,6 +1,7 @@
 use netcanv_renderer::paws;
 
 use wasm_bindgen::JsValue;
+use winit::dpi::LogicalSize;
 
 pub fn color_to_jsvalue(color: paws::Color) -> JsValue {
    JsValue::from_str(&format!(
@@ -10,6 +11,15 @@ pub fn color_to_jsvalue(color: paws::Color) -> JsValue {
       color.b,
       color.a as f32 / 255.0
    ))
+}
+
+pub fn get_window_size() -> LogicalSize<u32> {
+   let window = web_sys::window().unwrap();
+
+   let width = window.inner_width().unwrap().as_f64().unwrap() as u32;
+   let height = window.inner_height().unwrap().as_f64().unwrap() as u32;
+
+   LogicalSize::new(width, height)
 }
 
 pub mod webp {

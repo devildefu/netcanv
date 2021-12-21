@@ -1,6 +1,7 @@
-use netcanv_renderer::paws::{self, Ui};
+use netcanv_renderer::paws::Ui;
 use std::collections::HashMap;
 use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 use web_sys::HtmlImageElement;
 use winit::event_loop::EventLoop;
 use winit::platform::web::WindowExtWebSys;
@@ -23,7 +24,7 @@ pub use winit;
 
 pub struct CanvasBackend {
    context: Rc<web_sys::CanvasRenderingContext2d>,
-   window: winit::window::Window,
+   window: Rc<winit::window::Window>,
    cache: HashMap<Vec<u8>, HtmlImageElement>,
    states: Vec<State>,
    current_state: usize,
@@ -33,9 +34,26 @@ impl CanvasBackend {
    pub fn new(window_builder: WindowBuilder, event_loop: &EventLoop<()>) -> anyhow::Result<Self> {
       use wasm_bindgen::JsCast;
 
-      let winit_window = window_builder.build(&event_loop)?;
-      let canvas = winit_window.canvas();
       let window = web_sys::window().unwrap();
+
+      let winit_window =
+         Rc::new(window_builder.with_inner_size(common::get_window_size()).build(&event_loop)?);
+
+      // Listen to resize event, so we can change canvas size when window size change
+      {
+         let winit_window = Rc::clone(&winit_window);
+         let closure = Closure::wrap(Box::new(move || {
+            winit_window.set_inner_size(common::get_window_size());
+         }) as Box<dyn FnMut()>);
+
+         window
+            .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
+            .unwrap();
+
+         closure.forget();
+      }
+
+      let canvas = winit_window.canvas();
       let document = window.document().unwrap();
       let body = document.body().unwrap();
       body.append_child(&canvas).expect("Append canvas to HTML body");
