@@ -343,10 +343,6 @@ impl TextField {
             }
          }
 
-         if input.key_just_typed(VirtualKeyCode::Back) {
-            self.backspace();
-         }
-
          if input.key_just_typed(VirtualKeyCode::Delete) {
             self.delete();
             self.reset_blink(input);
