@@ -85,7 +85,11 @@ features = [
    "MessageEvent",
    "BinaryType",
    "Worker",
-   "DedicatedWorkerGlobalScope"
+   "DedicatedWorkerGlobalScope",
+   "HtmlInputElement",
+   "FileList",
+   "File",
+   "FileReader"
 ]
 
 [profile.release]

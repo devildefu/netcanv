@@ -30,6 +30,8 @@ use crate::viewport::Viewport;
 
 use self::tools::{BrushTool, Net, SelectionTool, Tool, ToolArgs};
 
+use super::lobby::SelectedFile;
+
 /// A log message in the lower left corner.
 ///
 /// These are used for displaying errors and joined/left messages.
@@ -70,7 +72,7 @@ pub struct State {
    update_timer: Timer,
    chunk_downloads: HashMap<(i32, i32), ChunkDownload>,
 
-   load_from_file: Option<PathBuf>,
+   load_file: Option<SelectedFile>,
    save_to_file: Option<PathBuf>,
    last_autosave: Instant,
 
@@ -99,7 +101,7 @@ impl State {
    pub const TIME_PER_UPDATE: Duration = Duration::from_millis(50);
 
    /// Creates a new paint state.
-   pub fn new(assets: Assets, config: UserConfig, peer: Peer, image_path: Option<PathBuf>) -> Self {
+   pub fn new(assets: Assets, config: UserConfig, peer: Peer, image: Option<SelectedFile>) -> Self {
       let mut this = Self {
          assets,
          config,
@@ -113,7 +115,7 @@ impl State {
          update_timer: Timer::new(Self::TIME_PER_UPDATE),
          chunk_downloads: HashMap::new(),
 
-         load_from_file: image_path,
+         load_file: image,
          save_to_file: None,
          last_autosave: Instant::now(),
 
@@ -708,8 +710,8 @@ impl AppState for State {
 
       // Loading from file
 
-      if self.load_from_file.is_some() {
-         catch!(self.paint_canvas.load(ui, &self.load_from_file.take().unwrap()))
+      if self.load_file.is_some() {
+         catch!(self.paint_canvas.load(ui, &self.load_file.take().unwrap()))
       }
 
       // Autosaving

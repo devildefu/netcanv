@@ -15,6 +15,7 @@ use netcanv_renderer::paws::{vector, Point, Rect, Renderer, Vector};
 use netcanv_renderer::{Framebuffer as FramebufferTrait, RenderBackend};
 use serde::{Deserialize, Serialize};
 
+use crate::app::lobby::SelectedFile;
 use crate::backend::{Backend, Framebuffer};
 use crate::viewport::Viewport;
 
@@ -609,15 +610,18 @@ impl PaintCanvas {
    }
 
    /// Loads chunks from an image file.
-   fn load_from_image_file(&mut self, renderer: &mut Backend, path: &Path) -> anyhow::Result<()> {
-      use ::image::io::Reader as ImageReader;
-
-      let image = ImageReader::open(path)?.decode()?.into_rgba8();
+   fn load_from_image_file(
+      &mut self,
+      renderer: &mut Backend,
+      file: &SelectedFile,
+   ) -> anyhow::Result<()> {
+      let image = image::load_from_memory(&file.data)?.into_rgba8();
       log::info!("image size: {:?}", image.dimensions());
       let chunks_x = (image.width() as f32 / Chunk::SIZE.0 as f32).ceil() as i32;
       let chunks_y = (image.height() as f32 / Chunk::SIZE.1 as f32).ceil() as i32;
       log::info!("n. chunks: x={}, y={}", chunks_x, chunks_y);
-      let (origin_x, origin_y) = Self::extract_chunk_origin_from_filename(path).unwrap_or((0, 0));
+      let (origin_x, origin_y) =
+         Self::extract_chunk_origin_from_filename(&file.path).unwrap_or((0, 0));
 
       for y in 0..chunks_y {
          for x in 0..chunks_x {
@@ -682,8 +686,12 @@ impl PaintCanvas {
    }
 
    /// Loads chunks from a `.netcanv` directory.
-   fn load_from_netcanv(&mut self, renderer: &mut Backend, path: &Path) -> anyhow::Result<()> {
-      let path = Self::validate_netcanv_save_path(path)?;
+   fn load_from_netcanv(
+      &mut self,
+      renderer: &mut Backend,
+      file: &SelectedFile,
+   ) -> anyhow::Result<()> {
+      let path = Self::validate_netcanv_save_path(&file.path)?;
       log::info!("loading canvas from {:?}", path);
       // load canvas.toml
       log::info!("loading canvas.toml");
@@ -716,14 +724,14 @@ impl PaintCanvas {
    }
 
    /// Loads a paint canvas from the given path.
-   pub fn load(&mut self, renderer: &mut Backend, path: &Path) -> anyhow::Result<()> {
-      if let Some(ext) = path.extension() {
+   pub fn load(&mut self, renderer: &mut Backend, image: &SelectedFile) -> anyhow::Result<()> {
+      if let Some(ext) = image.path.extension() {
          match ext.to_str() {
-            Some("netcanv") | Some("toml") => self.load_from_netcanv(renderer, path),
-            _ => self.load_from_image_file(renderer, path),
+            Some("netcanv") | Some("toml") => self.load_from_netcanv(renderer, image),
+            _ => self.load_from_image_file(renderer, image),
          }
       } else {
-         self.load_from_image_file(renderer, path)
+         self.load_from_image_file(renderer, image)
       }
    }
 

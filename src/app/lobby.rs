@@ -1,10 +1,13 @@
 // The lobby app state.
 
 use std::fmt::Display;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-// use native_dialog::FileDialog;
+#[cfg(not(target_arch = "wasm32"))]
+use native_dialog::FileDialog;
 use netcanv_protocol::matchmaker;
 use netcanv_renderer::paws::{vector, AlignH, AlignV, Layout};
 use netcanv_renderer::{Font, RenderBackend};
@@ -32,6 +35,11 @@ impl<T: Display> From<T> for Status {
    }
 }
 
+pub struct SelectedFile {
+   pub data: Vec<u8>,
+   pub path: PathBuf,
+}
+
 /// The lobby app state.
 pub struct State {
    assets: Assets,
@@ -51,7 +59,8 @@ pub struct State {
    // net
    status: Status,
    peer: Option<Peer>,
-   image_file: Option<PathBuf>, // when this is Some, the canvas is loaded from a file
+   // image_file: Option<PathBuf>,
+   image: Option<SelectedFile>, // when this is Some, the canvas is loaded from a file
 }
 
 impl State {
@@ -74,7 +83,8 @@ impl State {
 
          status: Status::None,
          peer: None,
-         image_file: None,
+         // image_file: None,
+         image: None,
       }
    }
 
@@ -106,6 +116,27 @@ impl State {
    /// Processes the connection menu (nickname and matchmaker fields and two Expands with options
    /// for joining or hosting a room).
    fn process_menu(&mut self, ui: &mut Ui, input: &mut Input) -> Option<Box<dyn AppState>> {
+      macro_rules! host_room {
+         () => {
+            self.status = Status::Info("Connecting…".into());
+            match Self::host_room(
+               &self.matchmaker_socksys,
+               self.nickname_field.text(),
+               self.matchmaker_field.text(),
+            ) {
+               Ok(peer) => self.peer = Some(peer),
+               Err(status) => self.status = status,
+            }
+         };
+      }
+
+      // This loop needs to be here, because macros can't be defined in impl
+      for message in &bus::retrieve_all::<SelectedFile>() {
+         let file = message.consume();
+         self.image = Some(file);
+         host_room!();
+      }
+
       ui.push((ui.width(), ui.remaining_height()), Layout::Vertical);
 
       let button = ButtonArgs {
@@ -247,40 +278,87 @@ impl State {
          );
          ui.space(16.0);
 
-         macro_rules! host_room {
-            () => {
-               self.status = Status::Info("Connecting…".into());
-               match Self::host_room(
-                  &self.matchmaker_socksys,
-                  self.nickname_field.text(),
-                  self.matchmaker_field.text(),
-               ) {
-                  Ok(peer) => self.peer = Some(peer),
-                  Err(status) => self.status = status,
-               }
-            };
-         }
-
          ui.push((ui.remaining_width(), 32.0), Layout::Horizontal);
          if Button::with_text(ui, input, button, &self.assets.sans, "Host").clicked() {
             host_room!();
          }
          ui.space(8.0);
          if Button::with_text(ui, input, button, &self.assets.sans, "from File").clicked() {
-            // match FileDialog::new()
-            //    .set_filename("canvas.png")
-            //    .add_filter("Supported image files", &["png", "jpg", "jpeg", "jfif"])
-            //    .add_filter("NetCanv canvas", &["toml"])
-            //    .show_open_single_file()
-            // {
-            //    Ok(Some(path)) => {
-            //       self.image_file = Some(path);
-            //       host_room!();
-            //    }
-            //    Err(error) => self.status = Status::from(error),
-            //    _ => (),
-            // }
-            todo!();
+            #[cfg(not(target_arch = "wasm32"))]
+            match FileDialog::new()
+               .set_filename("canvas.png")
+               .add_filter("Supported image files", &["png", "jpg", "jpeg", "jfif"])
+               .add_filter("NetCanv canvas", &["toml"])
+               .show_open_single_file()
+            {
+               Ok(Some(path)) => {
+                  let mut file = catch!(File::open(&path), return None);
+                  let mut data = Vec::new();
+                  catch!(file.read_to_end(&mut data), return None);
+
+                  self.image = Some(SelectedFile {
+                     data,
+                     path: path.to_path_buf(),
+                  });
+                  host_room!();
+               }
+               Err(error) => self.status = Status::from(error),
+               _ => (),
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+               use js_sys::{ArrayBuffer, Uint8Array};
+               use wasm_bindgen::prelude::*;
+               use wasm_bindgen::JsCast;
+               use web_sys::{Event, FileReader, HtmlInputElement};
+
+               // Callback to handle change event, which handles selected file too
+               let change = Closure::wrap(Box::new(move |e: Event| {
+                  let input = e.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+
+                  // We accept only *one* file, so get first one
+                  // (and browser's file picker allows user to pick only one file anyway)
+                  let file = input.files().unwrap().get(0);
+
+                  match file {
+                     Some(file) => {
+                        // NOTE: Can we somehow move loading file to paint state?
+                        let filename = file.name();
+                        let load = Closure::wrap(Box::new(move |e: Event| {
+                           let reader = e.target().unwrap().dyn_into::<FileReader>().unwrap();
+                           let result = reader.result().unwrap().dyn_into::<ArrayBuffer>().unwrap();
+
+                           let data = Uint8Array::new(&result).to_vec();
+                           let path = Path::new(&filename).to_path_buf();
+
+                           bus::push(SelectedFile { data, path });
+                        }) as Box<dyn FnMut(_)>);
+
+                        let reader = FileReader::new().unwrap();
+                        reader.set_onload(Some(load.as_ref().unchecked_ref()));
+                        reader.read_as_array_buffer(&file).unwrap();
+                        load.forget();
+                     }
+                     None => (),
+                  }
+               }) as Box<dyn FnMut(_)>);
+
+               // We need to create new input element and click it, so browser will ask user
+               // to choose file from file picker.
+               // Browsers are weird, really.
+               let window = web_sys::window().unwrap();
+               let document = window.document().unwrap();
+               let input =
+                  document.create_element("input").unwrap().dyn_into::<HtmlInputElement>().unwrap();
+
+               input.set_type("file");
+               input.set_accept(".png,.jpg,.jpeg,.jfif");
+               input.add_event_listener_with_callback("change", change.as_ref().unchecked_ref());
+               input.click();
+
+               change.forget();
+            }
          }
          ui.pop();
 
@@ -469,7 +547,7 @@ impl AppState for State {
             this.assets,
             this.config,
             this.peer.unwrap(),
-            this.image_file,
+            this.image,
          ))
       } else {
          self
