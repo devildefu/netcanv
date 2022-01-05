@@ -1,8 +1,5 @@
 use std::cell::Cell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use once_cell::sync::Lazy;
 
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::ImageData;

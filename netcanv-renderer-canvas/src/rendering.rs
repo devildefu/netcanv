@@ -1,4 +1,4 @@
-use netcanv_renderer::paws::{self, AlignH, AlignV, Renderer};
+use netcanv_renderer::paws::{AlignH, AlignV, Renderer};
 use netcanv_renderer::{BlendMode, RenderBackend};
 use std::rc::Rc;
 

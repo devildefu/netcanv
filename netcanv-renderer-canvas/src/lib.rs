@@ -1,3 +1,8 @@
+// There are plenty of functions in JS that return JsValue, but they don't map to anyhow::Error,
+// so we'd better mute them for now.
+// Yes, I am doing something dangerous.
+#![allow(unused_must_use)]
+
 use netcanv_renderer::paws::Ui;
 use std::collections::HashMap;
 use std::rc::Rc;
