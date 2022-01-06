@@ -2,14 +2,18 @@
 
 mod tools;
 
+use image::png::PngEncoder;
+use image::ColorType;
 use instant::{Duration, Instant};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-// use native_dialog::FileDialog;
+#[cfg(not(target_arch = "wasm32"))]
+use native_dialog::FileDialog;
 use netcanv_renderer::paws::{
    point, vector, AlignH, AlignV, Color, Layout, Rect, Renderer, Vector,
 };
@@ -414,7 +418,57 @@ impl State {
             // downloading all chunks may stall the host for too long, lagging everything to death.
             // If a client wants to download all the chunks, they should probably just explore
             // enough of the canvas such that all the chunks get loaded.
-            catch!(self.paint_canvas.save(Some(&self.save_to_file.as_ref().unwrap())));
+            let imagebuffer =
+               catch!(self.paint_canvas.save(Some(&self.save_to_file.as_ref().unwrap())));
+
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+               let path = self.save_to_file.as_ref().unwrap();
+               catch!(imagebuffer.save(path));
+               log::info!("image {:?} saved successfully", path);
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+               use js_sys::{Array, Uint8Array};
+               use wasm_bindgen::{JsCast, JsValue};
+               use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, Url};
+
+               // Encode canvas to png
+               let mut buf: Vec<u8> = Vec::new();
+               let mut cursor = Cursor::new(&mut buf);
+               let encoder = PngEncoder::new(&mut cursor);
+               let (width, height) = (imagebuffer.width(), imagebuffer.height());
+               catch!(encoder.encode(&imagebuffer.into_vec(), width, height, ColorType::Rgba8));
+
+               // Copy png data to independent array (thanks wasm-bindgen)
+               let array = Uint8Array::new_with_length(buf.len() as _);
+               array.copy_from(&buf);
+
+               // Whatever this thing is
+               fn js_array(values: &[Uint8Array]) -> JsValue {
+                  JsValue::from(values.into_iter().map(|x| JsValue::from(x)).collect::<Array>())
+               }
+
+               let blob = Blob::new_with_u8_array_sequence_and_options(
+                  &js_array(&[array]),
+                  BlobPropertyBag::new().type_("image/png"),
+               )
+               .unwrap();
+
+               let url = Url::create_object_url_with_blob(&blob).unwrap();
+
+               let window = web_sys::window().unwrap();
+               let document = window.document().unwrap();
+
+               let anchor =
+                  document.create_element("a").unwrap().dyn_into::<HtmlAnchorElement>().unwrap();
+
+               anchor.set_href(&url);
+               anchor.set_download("canvas.png");
+               anchor.click();
+            }
+
             self.last_autosave = Instant::now();
             self.save_to_file = None;
          } else {
@@ -469,7 +523,7 @@ impl State {
       )
       .clicked()
       {
-         /*
+         #[cfg(not(target_arch = "wasm32"))]
          match FileDialog::new()
             .set_filename("canvas.png")
             .add_filter("PNG image", &["png"])
@@ -482,8 +536,15 @@ impl State {
             Err(error) => log!(self.log, "Error while selecting file: {}", error),
             _ => (),
          }
-         */
-         todo!()
+
+         #[cfg(target_arch = "wasm32")]
+         {
+            // HACK: The Lazy Way.
+            // Saves an empty PathBuf to self.save_to_file, since it's up to the user to decide where to save it,
+            // because I can't ask right away, and then save it normally to disk at that path.
+            // I will need to rework how netcanv saves the canvas.
+            self.save_to_file = Some(PathBuf::from("canvas.png"));
+         }
       }
       if self.peer.is_host() {
          // The room ID itself
@@ -716,6 +777,7 @@ impl AppState for State {
 
       // Autosaving
 
+      #[cfg(not(target_arch = "wasm32"))]
       if self.paint_canvas.filename().is_some()
          && self.last_autosave.elapsed() > Self::AUTOSAVE_INTERVAL
       {

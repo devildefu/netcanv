@@ -89,7 +89,11 @@ features = [
    "HtmlInputElement",
    "FileList",
    "File",
-   "FileReader"
+   "FileReader",
+   "Blob",
+   "BlobPropertyBag",
+   "Url",
+   "HtmlAnchorElement"
 ]
 
 [profile.release]

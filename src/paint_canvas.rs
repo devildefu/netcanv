@@ -462,7 +462,7 @@ impl PaintCanvas {
    }
 
    /// Saves the entire paint to a PNG file.
-   fn save_as_png(&self, path: &Path) -> anyhow::Result<()> {
+   fn save_as_png(&self, path: &Path) -> anyhow::Result<RgbaImage> {
       log::info!("saving png {:?}", path);
       let (mut left, mut top, mut right, mut bottom) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
       for (chunk_position, _) in &self.chunks {
@@ -502,9 +502,8 @@ impl PaintCanvas {
          );
          sub_image.copy_from(&chunk_image, 0, 0)?;
       }
-      image.save(path)?;
-      log::info!("image {:?} saved successfully", path);
-      Ok(())
+
+      Ok(image)
    }
 
    /// Validates the `.netcanv` save path. This strips away the `canvas.toml` if present, and makes
@@ -586,13 +585,14 @@ impl PaintCanvas {
    /// Saves the canvas to a PNG file or a `.netcanv` directory.
    ///
    /// If `path` is `None`, this performs an autosave of an already saved `.netcanv` directory.
-   pub fn save(&mut self, path: Option<&Path>) -> anyhow::Result<()> {
+   pub fn save(&mut self, path: Option<&Path>) -> anyhow::Result<RgbaImage> {
       let path =
          path.map(|p| p.to_path_buf()).or(self.filename.clone()).expect("no save path provided");
       if let Some(ext) = path.extension() {
          match ext.to_str() {
             Some("png") => self.save_as_png(&path),
-            Some("netcanv") | Some("toml") => self.save_as_netcanv(&path),
+            // NOTE: Browsers do not allow to save multiple files at once
+            Some("netcanv") | Some("toml") => todo!(),
             _ => anyhow::bail!("Unsupported save format. Please choose either .png or .netcanv"),
          }
       } else {
