@@ -1,3 +1,4 @@
+use gloo_storage::{LocalStorage, Storage};
 use image::png::PngEncoder;
 use image::{ColorType, RgbaImage};
 use once_cell::sync::Lazy;
@@ -19,6 +20,20 @@ fn permission(name: &str) -> js_sys::Object {
 }
 
 pub fn init() -> anyhow::Result<()> {
+   // Clipboard MAY work on firefox, so I'll hide option to force it
+   // in localStorage for now.
+   match LocalStorage::get("_FORCE_CLIPBOARD") {
+      Ok(v) if v => {
+         log::info!("Forced clipboard");
+
+         CLIPBOARD_READ.store(true, Ordering::Relaxed);
+         CLIPBOARD_WRITE.store(true, Ordering::Relaxed);
+
+         return Ok(());
+      }
+      _ => (),
+   }
+
    let window = web_sys::window().unwrap();
    let navigator = window.navigator();
    let permissions = navigator.permissions().unwrap();
