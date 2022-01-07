@@ -1282,6 +1282,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "gloo-events"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "088514ec8ef284891c762c88a66b639b3a730134714692ee31829765c5bc814f"
+dependencies = [
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "gloo-file"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d31ba1f51868ae10a0b665c6dccd5ed967486e7c17055d1c889596ee983be493"
+dependencies = [
+ "gloo-events",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "gloo-storage"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1965,6 +1987,7 @@ dependencies = [
  "console_log",
  "directories",
  "futures",
+ "gloo-file",
  "gloo-storage",
  "heapless",
  "image",
@@ -1979,6 +2002,7 @@ dependencies = [
  "netcanv-renderer-opengl",
  "netcanv-renderer-skia",
  "nysa",
+ "once_cell",
  "resvg",
  "serde",
  "simplelog",

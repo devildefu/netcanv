@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use crate::app::paint;
 use crate::assets::Assets;
 use crate::backend::{Backend, Font, Framebuffer, Image};
-#[cfg(not(any(target_arch = "wasm32")))]
 use crate::clipboard;
 use crate::common::{lerp_point, RectMath, VectorMath};
 use crate::paint_canvas::PaintCanvas;
@@ -143,12 +142,9 @@ impl SelectionTool {
 
    /// Copies the current selection to the system clipboard.
    fn copy_to_clipboard(&self) {
-      #[cfg(not(any(target_arch = "wasm32")))]
       if let Some(image) = self.selection.download_rgba() {
          catch!(clipboard::copy_image(image));
       }
-      #[cfg(target_arch = "wasm32")]
-      todo!()
    }
 
    /// Pastes the clipboard image into a new selection.

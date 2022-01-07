@@ -50,7 +50,6 @@ mod common;
 mod app;
 mod assets;
 mod backend;
-#[cfg(not(any(target_arch = "wasm32")))]
 mod clipboard;
 mod config;
 mod net;
@@ -86,7 +85,6 @@ pub fn main() -> anyhow::Result<()> {
    // Build the render backend.
    let renderer = Backend::new(window_builder, &event_loop)?;
    // Also, initialize the clipboard because we now have a window handle.
-   #[cfg(not(any(target_arch = "wasm32")))]
    clipboard::init()?;
 
    // On Wayland, winit draws its own set of decorations, which can be customized.

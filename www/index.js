@@ -57,6 +57,10 @@ export function send(data, token) {
   sockets[token].send(data.buffer);
 }
 
+export function createClipboardItem(mime, blob) {
+  return [new ClipboardItem({ [mime]: blob })];
+}
+
 const rust = import('../pkg');
 
 rust
