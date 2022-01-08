@@ -155,19 +155,14 @@ impl SelectionTool {
       net: &Net,
       position: Point,
    ) {
-      #[cfg(not(any(target_arch = "wasm32")))]
-      {
-         let image = catch!(clipboard::paste_image());
-         self.selection.deselect(renderer, paint_canvas);
-         self.selection.paste(renderer, position, &image);
+      let image = catch!(clipboard::paste_image());
+      self.selection.deselect(renderer, paint_canvas);
+      self.selection.paste(renderer, position, &image);
 
-         let bytes = catch!(Self::encode_image(image));
-         let Point { x, y } = position;
-         catch!(net.send(self, None, Packet::Paste((x, y), bytes)));
-         catch!(self.send_rect_packet(net));
-      }
-      #[cfg(target_arch = "wasm32")]
-      todo!()
+      let bytes = catch!(Self::encode_image(image));
+      let Point { x, y } = position;
+      catch!(net.send(self, None, Packet::Paste((x, y), bytes)));
+      catch!(self.send_rect_packet(net));
    }
 
    /// Encodes an image to PNG.

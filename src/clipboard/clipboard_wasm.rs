@@ -117,3 +117,7 @@ pub fn copy_image(image: RgbaImage) -> anyhow::Result<()> {
 pub fn paste_string() -> anyhow::Result<String> {
    anyhow::bail!("paste_string not implemented yet")
 }
+
+pub fn paste_image() -> anyhow::Result<RgbaImage> {
+   anyhow::bail!("paste_image not implemented yet")
+}
