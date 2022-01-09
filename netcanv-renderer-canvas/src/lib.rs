@@ -59,6 +59,12 @@ impl CanvasBackend {
       }
 
       let canvas = winit_window.canvas();
+
+      // Disable right click on canvas
+      let oncontextmenu = Closure::wrap(Box::new(|| false) as Box<dyn FnMut() -> bool>);
+      canvas.set_oncontextmenu(Some(oncontextmenu.as_ref().unchecked_ref()));
+      oncontextmenu.forget();
+
       let document = window.document().unwrap();
       let body = document.body().unwrap();
       body.append_child(&canvas).expect("Append canvas to HTML body");
