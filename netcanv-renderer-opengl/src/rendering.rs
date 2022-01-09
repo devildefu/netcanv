@@ -18,11 +18,36 @@ use netcanv_renderer::{
 };
 
 use crate::common::{normalized_color, to_vec2, GlUtilities, VectorMath};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::font::Font;
 use crate::framebuffer::Framebuffer;
 use crate::image::Image;
 use crate::shape_buffer::ShapeBuffer;
 use crate::OpenGlBackend;
+
+pub struct Font {}
+
+impl FontTrait for Font {
+   fn from_memory(memory: &[u8], default_size: f32) -> Self {
+      Self {}
+   }
+
+   fn with_size(&self, new_size: f32) -> Self {
+      Self {}
+   }
+
+   fn size(&self) -> f32 {
+      0.0
+   }
+
+   fn height(&self) -> f32 {
+      0.0
+   }
+
+   fn text_width(&self, text: &str) -> f32 {
+      0.0
+   }
+}
 
 #[repr(packed)]
 #[derive(Clone, Copy, Debug)]
@@ -758,6 +783,7 @@ impl Renderer for OpenGlBackend {
       self.state.draw();
    }
 
+   #[cfg(not(target_arch = "wasm32"))]
    fn text(
       &mut self,
       rect: Rect,
@@ -786,6 +812,18 @@ impl Renderer for OpenGlBackend {
 
       // Draw 'em.
       self.state.draw();
+      0.0
+   }
+
+   fn text(
+      &mut self,
+      rect: Rect,
+      font: &Font,
+      text: &str,
+      color: Color,
+      alignment: Alignment,
+   ) -> f32 {
+      // log::info!("text not implemented yet");
       0.0
    }
 }

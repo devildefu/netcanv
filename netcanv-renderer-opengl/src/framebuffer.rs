@@ -1,4 +1,5 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use glow::{HasContext, PixelPackData, PixelUnpackData};
 
@@ -59,7 +60,13 @@ impl Framebuffer {
          );
          framebuffer = gl.create_framebuffer().unwrap();
          gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
-         gl.framebuffer_texture(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, Some(texture), 0);
+         gl.framebuffer_texture_2d(
+            glow::FRAMEBUFFER,
+            glow::COLOR_ATTACHMENT0,
+            glow::TEXTURE_2D,
+            Some(texture),
+            0,
+         );
          assert!(
             gl.check_framebuffer_status(glow::FRAMEBUFFER) == glow::FRAMEBUFFER_COMPLETE,
             "could not create framebuffer (framebuffer was incomplete)"

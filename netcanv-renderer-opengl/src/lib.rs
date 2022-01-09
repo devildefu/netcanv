@@ -1,4 +1,5 @@
 mod common;
+#[cfg(not(target_arch = "wasm32"))]
 mod font;
 mod framebuffer;
 mod image;
@@ -11,6 +12,7 @@ use std::rc::Rc;
 
 #[cfg(not(target_arch = "wasm32"))]
 use glutin::dpi::PhysicalSize;
+#[cfg(not(target_arch = "wasm32"))]
 use glutin::{
    ContextBuilder, ContextWrapper, GlProfile, GlRequest, NotCurrent, PossiblyCurrent,
    WindowedContext,
@@ -20,7 +22,11 @@ pub use winit;
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
+#[cfg(not(target_arch = "wasm32"))]
 pub use crate::font::Font;
+#[cfg(target_arch = "wasm32")]
+pub use crate::rendering::Font;
+
 pub use crate::framebuffer::Framebuffer;
 pub use crate::image::Image;
 use rendering::RenderState;
@@ -33,11 +39,13 @@ pub struct OpenGlBackend {
    #[cfg(target_arch = "wasm32")]
    window: Window,
    pub(crate) gl: Rc<glow::Context>,
+   #[cfg(not(target_arch = "wasm32"))]
    pub(crate) freetype: Rc<freetype::Library>,
    state: RenderState,
 }
 
 impl OpenGlBackend {
+   #[cfg(not(target_arch = "wasm32"))]
    fn build_context(
       window_builder: WindowBuilder,
       event_loop: &EventLoop<()>,

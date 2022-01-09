@@ -267,8 +267,8 @@ impl Chunk {
 
    /// Decodes a WebP file into the given sub-chunk.
    fn decode_webp_data(&mut self, sub: usize, data: &[u8]) -> anyhow::Result<()> {
-      #[cfg(not(any(feature = "renderer-canvas", not(target_arch = "wasm32"))))]
-      compile_error!("Netcanv for target wasm32 requires canvas renderer to support webp");
+      // #[cfg(not(any(feature = "renderer-canvas", not(target_arch = "wasm32"))))]
+      // compile_error!("Netcanv for target wasm32 requires canvas renderer to support webp");
 
       #[cfg(not(target_arch = "wasm32"))]
       {

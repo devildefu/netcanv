@@ -2071,6 +2071,7 @@ dependencies = [
  "glow",
  "glutin",
  "lazy_static",
+ "log",
  "memoffset",
  "netcanv-renderer",
  "smallvec",
