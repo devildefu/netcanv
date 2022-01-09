@@ -45,6 +45,11 @@ class SocketWrapper {
       this.queue.push(data);
     }
   }
+
+  close(token) {
+    this.socket.close();
+    delete sockets[token];
+  }
 }
 
 export function connect(token, address) {
@@ -55,6 +60,10 @@ export function connect(token, address) {
 
 export function send(data, token) {
   sockets[token].send(data.buffer);
+}
+
+export function close(token) {
+  sockets[token].close(token);
 }
 
 export function createClipboardItem(mime, blob) {

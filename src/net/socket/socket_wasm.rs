@@ -201,8 +201,7 @@ where
          }
          // Quit when the owning socket is dropped.
          SendPacket::Quit(quit_token) if quit_token == token => {
-            log::info!("quit");
-            todo!()
+            close(quit_token.0);
          }
          _ => (),
       }
@@ -222,6 +221,9 @@ extern "C" {
 
    #[wasm_bindgen]
    fn send(data: Uint8Array, token: usize);
+
+   #[wasm_bindgen]
+   fn close(token: usize);
 }
 
 #[wasm_bindgen]
