@@ -462,8 +462,7 @@ impl PaintCanvas {
    }
 
    /// Saves the entire paint to a PNG file.
-   fn save_as_png(&self, path: &Path) -> anyhow::Result<RgbaImage> {
-      log::info!("saving png {:?}", path);
+   fn save_as_png(&self) -> anyhow::Result<RgbaImage> {
       let (mut left, mut top, mut right, mut bottom) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
       for (chunk_position, _) in &self.chunks {
          left = left.min(chunk_position.0);
@@ -590,10 +589,12 @@ impl PaintCanvas {
          path.map(|p| p.to_path_buf()).or(self.filename.clone()).expect("no save path provided");
       if let Some(ext) = path.extension() {
          match ext.to_str() {
-            Some("png") => self.save_as_png(&path),
+            Some("png") => self.save_as_png(),
             // NOTE: Browsers do not allow to save multiple files at once
-            Some("netcanv") | Some("toml") => todo!(),
-            _ => anyhow::bail!("Unsupported save format. Please choose either .png or .netcanv"),
+            Some("netcanv") | Some("toml") => {
+               anyhow::bail!("Support for .netcanv not implemented yet")
+            }
+            _ => anyhow::bail!("Unsupported save format. Only .png supported"),
          }
       } else {
          anyhow::bail!("Can't save a canvas without an extension")

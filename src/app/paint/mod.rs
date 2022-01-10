@@ -430,33 +430,13 @@ impl State {
 
             #[cfg(target_arch = "wasm32")]
             {
-               use js_sys::{Array, Uint8Array};
-               use wasm_bindgen::{JsCast, JsValue};
-               use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, Url};
+               use wasm_bindgen::JsCast;
+               use web_sys::{HtmlAnchorElement, Url};
 
-               // Encode canvas to png
-               let mut buf: Vec<u8> = Vec::new();
-               let mut cursor = Cursor::new(&mut buf);
-               let encoder = PngEncoder::new(&mut cursor);
-               let (width, height) = (imagebuffer.width(), imagebuffer.height());
-               catch!(encoder.encode(&imagebuffer.into_vec(), width, height, ColorType::Rgba8));
+               let buf = catch!(png::encode_to_vec(imagebuffer));
 
-               // Copy png data to independent array (thanks wasm-bindgen)
-               let array = Uint8Array::new_with_length(buf.len() as _);
-               array.copy_from(&buf);
-
-               // Whatever this thing is
-               fn js_array(values: &[Uint8Array]) -> JsValue {
-                  JsValue::from(values.into_iter().map(|x| JsValue::from(x)).collect::<Array>())
-               }
-
-               let blob = Blob::new_with_u8_array_sequence_and_options(
-                  &js_array(&[array]),
-                  BlobPropertyBag::new().type_("image/png"),
-               )
-               .unwrap();
-
-               let url = Url::create_object_url_with_blob(&blob).unwrap();
+               let blob = gloo_file::Blob::new_with_options(buf.as_slice(), Some("image/png"));
+               let url = Url::create_object_url_with_blob(blob.as_ref()).unwrap();
 
                let window = web_sys::window().unwrap();
                let document = window.document().unwrap();
@@ -465,7 +445,9 @@ impl State {
                   document.create_element("a").unwrap().dyn_into::<HtmlAnchorElement>().unwrap();
 
                anchor.set_href(&url);
-               anchor.set_download("canvas.png");
+               anchor.set_download(
+                  self.save_to_file.as_ref().unwrap().to_str().unwrap_or("canvas.png"),
+               );
                anchor.click();
             }
 

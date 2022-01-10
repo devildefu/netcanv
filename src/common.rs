@@ -239,3 +239,24 @@ macro_rules! catch {
         catch!($exp, return ())
     };
 }
+
+//
+// Images
+//
+
+pub mod png {
+   use image::png::PngEncoder;
+   use image::{ColorType, RgbaImage};
+   use std::io::Cursor;
+
+   pub fn encode_to_vec(image: RgbaImage) -> anyhow::Result<Vec<u8>> {
+      let (width, height) = (image.width(), image.height());
+
+      let mut buf: Vec<u8> = Vec::new();
+      let mut cursor = Cursor::new(&mut buf);
+      let encoder = PngEncoder::new(&mut cursor);
+      encoder.encode(&image.into_vec(), width, height, ColorType::Rgba8)?;
+
+      Ok(buf)
+   }
+}
