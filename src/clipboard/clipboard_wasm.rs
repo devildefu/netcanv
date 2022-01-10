@@ -9,6 +9,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{PermissionState, PermissionStatus};
 
+use crate::common::png;
+
 // Did we get the permissions?
 static CLIPBOARD_READ: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -98,12 +100,7 @@ pub fn copy_image(image: RgbaImage) -> anyhow::Result<()> {
       let navigator = window.navigator();
       let clipboard = navigator.clipboard().unwrap();
 
-      // Encode to png
-      let mut buf: Vec<u8> = Vec::new();
-      let mut cursor = Cursor::new(&mut buf);
-      let encoder = PngEncoder::new(&mut cursor);
-      let (width, height) = (image.width(), image.height());
-      encoder.encode(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      let buf = png::encode_to_vec(image)?;
 
       let blob = gloo_file::Blob::new_with_options(buf.as_slice(), Some("image/png"));
       clipboard.write(&create_clipboard_item("image/png", blob.as_ref()));
