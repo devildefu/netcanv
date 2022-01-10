@@ -124,7 +124,7 @@ where
 
    fn resolve_address_with_default_port(
       address: &str,
-      default_port: u16,
+      _default_port: u16,
    ) -> anyhow::Result<url::Url> {
       let url = url::Url::parse(address)?;
 

@@ -82,6 +82,7 @@ pub struct UserConfig {
 
 impl UserConfig {
    /// Returns the platform-specific configuration directory.
+   #[allow(dead_code)]
    pub fn config_dir() -> PathBuf {
       let project_dirs =
          ProjectDirs::from("", "", "NetCanv").expect("cannot determine config directories");
@@ -89,6 +90,7 @@ impl UserConfig {
    }
 
    /// Returns the path to the `config.toml` file.
+   #[allow(dead_code)]
    pub fn path() -> PathBuf {
       Self::config_dir().join("config.toml")
    }
@@ -138,15 +140,15 @@ impl UserConfig {
 
          match LocalStorage::get(key) {
             Ok(v) => Ok(v),
-            Err(StorageError::KeyNotFound(e)) => {
+            Err(StorageError::KeyNotFound(_e)) => {
                // We haven't found the key, so we need to set it to a default value and return that value
-               LocalStorage::set(key, &value);
+               LocalStorage::set(key, &value)?;
                Ok(value)
             }
-            Err(StorageError::SerdeError(e)) => {
+            Err(StorageError::SerdeError(_e)) => {
                log::info!("Failed to parse {} value, returning default.", key);
                // For some reason updating localStorage fixes it?
-               LocalStorage::set(key, &value);
+               LocalStorage::set(key, &value)?;
                Ok(value)
             }
             // Other errors of no interest to us
@@ -177,9 +179,9 @@ impl UserConfig {
       use gloo_storage::{LocalStorage, Storage};
 
       // TODO: use serde for this
-      LocalStorage::set("nickname", &self.lobby.nickname);
-      LocalStorage::set("matchmaker", &self.lobby.matchmaker);
-      LocalStorage::set("color_scheme", self.ui.color_scheme);
+      LocalStorage::set("nickname", &self.lobby.nickname)?;
+      LocalStorage::set("matchmaker", &self.lobby.matchmaker)?;
+      LocalStorage::set("color_scheme", self.ui.color_scheme)?;
 
       Ok(())
    }

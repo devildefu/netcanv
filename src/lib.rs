@@ -25,8 +25,6 @@
 // Prevent opening a console on Windows if this is a release build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::fmt::Write;
-
 use crate::backend::winit::dpi::LogicalSize;
 use crate::backend::winit::event::{Event, WindowEvent};
 use crate::backend::winit::event_loop::{ControlFlow, EventLoop};
@@ -36,7 +34,6 @@ use crate::backend::winit::window::WindowBuilder;
 use backend::Backend;
 use config::UserConfig;
 use netcanv_renderer::paws::{vector, Layout};
-use nysa::global as bus;
 
 #[cfg(feature = "renderer-canvas")]
 use netcanv_renderer_canvas::UiRenderFrame;
@@ -133,9 +130,12 @@ pub fn main() -> anyhow::Result<()> {
             input.finish_frame();
 
             #[cfg(target_family = "unix")]
-            for message in &bus::retrieve_all::<SwitchColorScheme>() {
-               let SwitchColorScheme(scheme) = message.consume();
-               ui.window().set_wayland_theme(ColorScheme::from(scheme));
+            {
+               use nysa::global as bus;
+               for message in &bus::retrieve_all::<SwitchColorScheme>() {
+                  let SwitchColorScheme(scheme) = message.consume();
+                  ui.window().set_wayland_theme(ColorScheme::from(scheme));
+               }
             }
          }
 
@@ -155,7 +155,7 @@ mod wasm {
    #[wasm_bindgen]
    pub fn start() {
       use log::Level;
-      console_log::init_with_level(Level::Debug);
+      console_log::init_with_level(Level::Debug).expect("Failed to initialize logger");
       set_panic_hook();
 
       if let Err(e) = super::main() {

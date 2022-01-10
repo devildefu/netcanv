@@ -8,8 +8,7 @@ use std::path::{Path, PathBuf};
 
 use ::image::codecs::png::{PngDecoder, PngEncoder};
 use ::image::{
-   ColorType, DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageDecoder, Rgba,
-   RgbaImage,
+   ColorType, GenericImage, GenericImageView, ImageBuffer, ImageDecoder, Rgba, RgbaImage,
 };
 use netcanv_renderer::paws::{vector, Point, Rect, Renderer, Vector};
 use netcanv_renderer::{Framebuffer as FramebufferTrait, RenderBackend};
@@ -182,6 +181,8 @@ impl Chunk {
    fn webp_data(&mut self, sub: usize) -> Option<&[u8]> {
       #[cfg(not(target_arch = "wasm32"))]
       {
+         use ::image::DynamicImage;
+
          if self.webp_data[sub].is_none() {
             log::info!("  webp data doesn't exist, encoding");
             let chunk_image = self.download_image();
