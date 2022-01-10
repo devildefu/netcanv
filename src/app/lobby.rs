@@ -1,8 +1,6 @@
 // The lobby app state.
 
 use std::fmt::Display;
-use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -292,6 +290,9 @@ impl State {
                .show_open_single_file()
             {
                Ok(Some(path)) => {
+                  use std::fs::File;
+                  use std::io::Read;
+
                   let mut file = catch!(File::open(&path), return None);
                   let mut data = Vec::new();
                   catch!(file.read_to_end(&mut data), return None);

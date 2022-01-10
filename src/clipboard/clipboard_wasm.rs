@@ -1,8 +1,6 @@
 use gloo_storage::{LocalStorage, Storage};
-use image::png::PngEncoder;
-use image::{ColorType, RgbaImage};
+use image::RgbaImage;
 use once_cell::sync::Lazy;
-use std::io::Cursor;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use wasm_bindgen::prelude::*;
@@ -22,7 +20,7 @@ fn permission(name: &str) -> js_sys::Object {
 }
 
 pub fn init() -> anyhow::Result<()> {
-   // Clipboard MAY work on firefox, so I'll hide option to force it
+   // Clipboard MAY work on firefox/safari, so I'll hide option to force it
    // in localStorage for now.
    match LocalStorage::get("_FORCE_CLIPBOARD") {
       Ok(v) if v => {
@@ -38,36 +36,43 @@ pub fn init() -> anyhow::Result<()> {
 
    let window = web_sys::window().unwrap();
    let navigator = window.navigator();
-   let permissions = navigator.permissions().unwrap();
 
-   let read = Closure::wrap(Box::new(move |status: JsValue| {
-      let status = status.dyn_into::<PermissionStatus>().unwrap();
-      log::info!("Clipboard read permission state: {:?}", status.state());
+   // On browsers using Blink, permissions are implemented and we should ask for them first,
+   // and if the browser has allowed us, we can use the clipboard.
+   //
+   // There are permissions on Gecko, but no needed permissions for the clipboard.
+   // On WebKit, permissions are not implemented.
+   // You can force clipboard with the _FORCE_CLIPBOARD entry in local storage. See above.
+   if let Ok(permissions) = navigator.permissions() {
+      let read = Closure::wrap(Box::new(move |status: JsValue| {
+         let status = status.dyn_into::<PermissionStatus>().unwrap();
+         log::info!("Clipboard read permission state: {:?}", status.state());
 
-      use PermissionState::*;
-      match status.state() {
-         Granted | Prompt => CLIPBOARD_READ.store(true, Ordering::Relaxed),
-         _ => (),
-      }
-   }) as Box<dyn FnMut(_)>);
+         use PermissionState::*;
+         match status.state() {
+            Granted | Prompt => CLIPBOARD_READ.store(true, Ordering::Relaxed),
+            _ => (),
+         }
+      }) as Box<dyn FnMut(_)>);
 
-   let write = Closure::wrap(Box::new(move |status: JsValue| {
-      let status = status.dyn_into::<PermissionStatus>().unwrap();
-      log::info!("Clipboard write permission state: {:?}", status.state());
+      let write = Closure::wrap(Box::new(move |status: JsValue| {
+         let status = status.dyn_into::<PermissionStatus>().unwrap();
+         log::info!("Clipboard write permission state: {:?}", status.state());
 
-      use PermissionState::*;
-      match status.state() {
-         Granted | Prompt => CLIPBOARD_WRITE.store(true, Ordering::Relaxed),
-         _ => (),
-      }
-   }) as Box<dyn FnMut(_)>);
+         use PermissionState::*;
+         match status.state() {
+            Granted | Prompt => CLIPBOARD_WRITE.store(true, Ordering::Relaxed),
+            _ => (),
+         }
+      }) as Box<dyn FnMut(_)>);
 
-   // Query for clipboard read and write
-   permissions.query(&permission("clipboard-read")).unwrap().then(&read);
-   permissions.query(&permission("clipboard-write")).unwrap().then(&write);
+      // Query for clipboard read and write
+      permissions.query(&permission("clipboard-read")).unwrap().then(&read);
+      permissions.query(&permission("clipboard-write")).unwrap().then(&write);
 
-   read.forget();
-   write.forget();
+      read.forget();
+      write.forget();
+   }
 
    Ok(())
 }

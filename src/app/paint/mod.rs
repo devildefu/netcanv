@@ -2,12 +2,9 @@
 
 mod tools;
 
-use image::png::PngEncoder;
-use image::ColorType;
 use instant::{Duration, Instant};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::rc::Rc;
