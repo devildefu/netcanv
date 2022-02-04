@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use js_sys::Uint8Array;
+use url::Url;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::MessageEvent;
@@ -122,19 +123,19 @@ where
       inner.send(packet, token);
    }
 
-   fn resolve_address_with_default_port(
-      address: &str,
-      _default_port: u16,
-   ) -> anyhow::Result<url::Url> {
-      let url = url::Url::parse(address)?;
+   fn resolve_address_with_default_port(url: &str, default_port: u16) -> anyhow::Result<Url> {
+      let url = if !url.starts_with("ws://") && !url.starts_with("wss://") {
+         format!("wss://{}", url)
+      } else {
+         url.to_owned()
+      };
 
-      // if let None = url.port() {
-      //    // Url::set_port on Error does nothing, so it is fine to ignore it
-      //    #[allow(unused_must_use)]
-      //    {
-      //       url.set_port(Some(default_port));
-      //    }
-      // }
+      let mut url = Url::parse(&url)?;
+
+      if url.port().is_none() {
+         // Url::set_port on Error does nothing, so it is fine to ignore it
+         let _ = url.set_port(Some(default_port));
+      }
 
       Ok(url)
    }

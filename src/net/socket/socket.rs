@@ -18,6 +18,7 @@ use async_tungstenite::async_std::ConnectStream;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{future, SinkExt, StreamExt};
+use url::Url;
 
 use crate::common::Fatal;
 use crate::token::Token;
@@ -137,18 +138,18 @@ where
       inner.send(packet, token);
    }
 
-   fn resolve_address_with_default_port(
-      address: &str,
-      default_port: u16,
-   ) -> anyhow::Result<url::Url> {
-      let mut url = url::Url::parse(&format!("ws://{}", address))?;
+   fn resolve_address_with_default_port(url: &str, default_port: u16) -> anyhow::Result<Url> {
+      let url = if !url.starts_with("ws://") && !url.starts_with("wss://") {
+         format!("wss://{}", url)
+      } else {
+         url.to_owned()
+      };
 
-      if let None = url.port() {
+      let mut url = Url::parse(&url)?;
+
+      if url.port().is_none() {
          // Url::set_port on Error does nothing, so it is fine to ignore it
-         #[allow(unused_must_use)]
-         {
-            url.set_port(Some(default_port));
-         }
+         let _ = url.set_port(Some(default_port));
       }
 
       Ok(url)
