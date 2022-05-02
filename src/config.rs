@@ -81,6 +81,7 @@ pub struct UserConfig {
    pub keymap: Keymap,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl UserConfig {
    /// Returns the platform-specific configuration directory.
    pub fn config_dir() -> PathBuf {
@@ -99,37 +100,101 @@ impl UserConfig {
    /// If the `config.toml` doesn't exist, it's created with values inherited from
    /// `UserConfig::default`.
    fn load_or_create() -> netcanv::Result<Self> {
-      // let config_dir = Self::config_dir();
-      // let config_file = Self::path();
-      // log::info!("loading config from {:?}", config_file);
-      // std::fs::create_dir_all(config_dir)?;
-      // if !config_file.is_file() {
-      //    let config = Self::default();
-      //    config.save()?;
-      //    Ok(config)
-      // } else {
-      //    let file = std::fs::read_to_string(&config_file)?;
-      //    let config: Self = match toml::from_str(&file) {
-      //       Ok(config) => config,
-      //       Err(error) => {
-      //          log::error!("error while deserializing config file: {}", error);
-      //          log::error!("falling back to default config");
-      //          return Ok(Self::default());
-      //       }
-      //    };
-      //    // Preemptively save the config to the disk if any new keys have been added.
-      //    // I'm not sure if errors should be treated as fatal or not in this case.
-      //    config.save()?;
-      //    Ok(config)
-      // }
-      Ok(Self::default())
+      let config_dir = Self::config_dir();
+      let config_file = Self::path();
+      log::info!("loading config from {:?}", config_file);
+      std::fs::create_dir_all(config_dir)?;
+      if !config_file.is_file() {
+         let config = Self::default();
+         config.save()?;
+         Ok(config)
+      } else {
+         let file = std::fs::read_to_string(&config_file)?;
+         let config: Self = match toml::from_str(&file) {
+            Ok(config) => config,
+            Err(error) => {
+               log::error!("error while deserializing config file: {}", error);
+               log::error!("falling back to default config");
+               return Ok(Self::default());
+            }
+         };
+         // Preemptively save the config to the disk if any new keys have been added.
+         // I'm not sure if errors should be treated as fatal or not in this case.
+         config.save()?;
+         Ok(config)
+      }
    }
 
    /// Saves the user configuration to the `config.toml` file.
    fn save(&self) -> netcanv::Result<()> {
       // Assumes that `config_dir` was already created in `load_or_create`.
-      // let config_file = Self::path();
-      // std::fs::write(&config_file, toml::to_string(self)?)?;
+      let config_file = Self::path();
+      std::fs::write(&config_file, toml::to_string(self)?)?;
+      Ok(())
+   }
+}
+
+impl UserConfig {
+   fn load_or_create() -> netcanv::Result<Self> {
+      use gloo_storage::errors::StorageError;
+      use gloo_storage::{LocalStorage, Storage};
+      let mut config = Self::default();
+
+      /// Returns the T that is in localStorage, or if it doesn't find it, sets key to default value and returns it.
+      fn get_or_set<T>(key: impl AsRef<str>, value: T) -> netcanv::Result<T>
+      where
+         T: for<'de> Deserialize<'de> + Serialize,
+      {
+         let key = key.as_ref();
+
+         match LocalStorage::get(key) {
+            Ok(v) => Ok(v),
+            Err(StorageError::KeyNotFound(_e)) => {
+               // We haven't found the key, so we need to set it to a default value and return that value
+               LocalStorage::set(key, &value)?;
+               Ok(value)
+            }
+            Err(StorageError::SerdeError(_e)) => {
+               log::info!("Failed to parse {} value, returning default.", key);
+               // For some reason updating localStorage fixes it?
+               LocalStorage::set(key, &value)?;
+               Ok(value)
+            }
+            // Other errors of no interest to us
+            e => Ok(e?),
+         }
+      }
+
+      // TODO: use serde for this
+      config.language = get_or_set("language", config.language)?;
+      config.lobby.nickname = get_or_set("nickname", config.lobby.nickname)?;
+      config.lobby.relay = get_or_set("matchmaker", config.lobby.relay)?;
+      config.ui.color_scheme = get_or_set("color_scheme", config.ui.color_scheme)?;
+      config.ui.toolbar_position = get_or_set("toolbar_position", config.ui.toolbar_position)?;
+      config.window = None; // In browser it doesn't even have sense
+      config.keymap = get_or_set("keymap", config.keymap)?;
+
+      Ok(config)
+   }
+
+   fn save(&self) -> netcanv::Result<()> {
+      use gloo_storage::{LocalStorage, Storage};
+
+      // TODO: use serde for this
+      let Self {
+         language,
+         lobby,
+         ui,
+         keymap,
+         ..
+      } = self;
+      LocalStorage::set("language", language)?;
+      LocalStorage::set("nickname", &lobby.nickname)?;
+      LocalStorage::set("matchmaker", &lobby.relay)?;
+      LocalStorage::set("color_scheme", &ui.color_scheme)?;
+      LocalStorage::set("toolbar_position", &ui.toolbar_position)?;
+      LocalStorage::set("keymap", &keymap)?;
+
       Ok(())
    }
 }

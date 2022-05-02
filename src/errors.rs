@@ -18,15 +18,30 @@ pub enum Error {
    //
    // Generic
    //
-   Io { error: String },
-   Image { error: String },
-   Join { error: String },
+   Io {
+      error: String,
+   },
+   Image {
+      error: String,
+   },
+   Join {
+      error: String,
+   },
    ChannelSend,
-   TomlParse { error: String },
-   TomlSerialization { error: String },
+   TomlParse {
+      error: String,
+   },
+   TomlSerialization {
+      error: String,
+   },
+   SerdeOther {
+      error: String,
+   },
    InvalidUtf8,
 
-   FailedToPersistTemporaryFile { error: String },
+   FailedToPersistTemporaryFile {
+      error: String,
+   },
 
    //
    // Parsing
@@ -43,32 +58,46 @@ pub enum Error {
    //
    // Initialization
    //
-   CouldNotInitializeBackend { error: String },
-   CouldNotInitializeLogger { error: String },
+   CouldNotInitializeBackend {
+      error: String,
+   },
+   CouldNotInitializeLogger {
+      error: String,
+   },
 
    //
    // Clipboard
    //
    ClipboardWasNotInitialized,
-   CannotSaveToClipboard { error: String },
+   CannotSaveToClipboard {
+      error: String,
+   },
    ClipboardDoesNotContainText,
    ClipboardDoesNotContainAnImage,
    ClipboardContentUnavailable,
    ClipboardNotSupported,
    ClipboardOccupied,
    ClipboardConversion,
-   ClipboardUnknown { error: String },
+   ClipboardUnknown {
+      error: String,
+   },
 
    //
    // User config
    //
    ConfigIsAlreadyLoaded,
+   #[cfg(target_arch = "wasm32")]
+   LocalStorage,
 
    //
    // Translations
    //
-   TranslationsDoNotExist { language: String },
-   CouldNotLoadLanguage { language: String },
+   TranslationsDoNotExist {
+      language: String,
+   },
+   CouldNotLoadLanguage {
+      language: String,
+   },
 
    //
    // License page
@@ -93,9 +122,13 @@ pub enum Error {
    //
    // File dialogs
    //
-   DialogUnexpectedOutput { output: &'static str },
+   DialogUnexpectedOutput {
+      output: &'static str,
+   },
    NoDialogImplementation,
-   DialogImplementationError { error: String },
+   DialogImplementationError {
+      error: String,
+   },
 
    //
    // Socket networking
@@ -106,18 +139,27 @@ pub enum Error {
    RelayIsTooOld,
    RelayIsTooNew,
    ReceivedPacketThatIsTooBig,
-   TriedToSendPacketThatIsTooBig { max: usize, size: usize },
+   TriedToSendPacketThatIsTooBig {
+      max: usize,
+      size: usize,
+   },
    TriedToSendPacketThatIsWayTooBig,
    RelayHasDisconnected,
-   WebSocket { error: String },
+   WebSocket {
+      error: String,
+   },
 
    //
    // Peer networking
    //
    NotConnectedToRelay,
    NotConnectedToHost,
-   PacketSerializationFailed { error: String },
-   PacketDeserializationFailed { error: String },
+   PacketSerializationFailed {
+      error: String,
+   },
+   PacketDeserializationFailed {
+      error: String,
+   },
    Relay(relay::Error),
    UnexpectedRelayPacket,
    ClientIsTooOld,
@@ -127,6 +169,16 @@ pub enum Error {
    // Tools
    //
    InvalidToolPacket,
+
+   //
+   // WebAssembly
+   //
+   JsError {
+      error: String,
+   },
+   StorageKeyNotFound {
+      error: String,
+   },
 }
 
 macro_rules! error_from {
@@ -146,6 +198,23 @@ error_from!(std::io::Error, Error::Io);
 error_from!(toml::de::Error, Error::TomlParse);
 error_from!(toml::ser::Error, Error::TomlSerialization);
 error_from!(ImageError, Error::Image);
+
+#[cfg(target_arch = "wasm32")]
+impl From<gloo_storage::errors::StorageError> for Error {
+   fn from(error: gloo_storage::errors::StorageError) -> Self {
+      match error {
+         gloo_storage::errors::StorageError::SerdeError(e) => Error::SerdeOther {
+            error: e.to_string(),
+         },
+         gloo_storage::errors::StorageError::KeyNotFound(e) => {
+            Error::StorageKeyNotFound { error: e }
+         }
+         gloo_storage::errors::StorageError::JsError(e) => Error::JsError {
+            error: e.to_string(),
+         },
+      }
+   }
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 error_from!(tungstenite::Error, Error::WebSocket);
