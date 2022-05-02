@@ -59,7 +59,10 @@ use native_dialog::{MessageDialog, MessageType};
 use netcanv_i18n::translate_enum::TranslateEnum;
 use netcanv_i18n::{Formatted, Language};
 use netcanv_renderer::paws::{vector, Layout};
+#[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::dpi::{PhysicalPosition, PhysicalSize};
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::winit::dpi::{PhysicalPosition, PhysicalSize};
 use nysa::global as bus;
 use simple_logger::SimpleLogger;
 
@@ -67,6 +70,8 @@ use simple_logger::SimpleLogger;
 use netcanv_renderer_opengl::UiRenderFrame;
 #[cfg(feature = "renderer-skia")]
 use netcanv_renderer_skia::UiRenderFrame;
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::UiRenderFrame;
 
 #[macro_use]
 mod common;

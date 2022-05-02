@@ -1414,6 +1414,7 @@ dependencies = [
  "netcanv-i18n",
  "netcanv-protocol",
  "netcanv-renderer",
+ "netcanv-renderer-canvas",
  "netcanv-renderer-opengl",
  "nysa",
  "once_cell",
@@ -1489,6 +1490,23 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "paws",
+]
+
+[[package]]
+name = "netcanv-renderer-canvas"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "image",
+ "js-sys",
+ "log",
+ "netcanv-renderer",
+ "once_cell",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "winit",
 ]
 
 [[package]]

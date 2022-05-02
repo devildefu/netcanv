@@ -1,7 +1,10 @@
 //! Views and view layouting.
 
 use netcanv_renderer::paws::{point, vector, Layout, Point, Rect, Vector};
+#[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::window::CursorIcon;
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::winit::window::CursorIcon;
 
 use crate::token::Token;
 

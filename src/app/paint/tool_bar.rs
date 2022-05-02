@@ -7,7 +7,10 @@ use std::rc::Rc;
 use netcanv_renderer::paws::{
    point, vector, AlignH, AlignV, Alignment, Color, Layout, LineCap, Point, Rect, Renderer,
 };
+#[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::event::MouseButton;
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::winit::event::MouseButton;
 
 use crate::common::{ControlFlow, RectMath};
 use crate::config::{self, config, ToolbarPosition};

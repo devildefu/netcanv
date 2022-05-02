@@ -3,7 +3,10 @@
 use std::ops::Range;
 
 use netcanv_renderer::Font as FontTrait;
+#[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::window::CursorIcon;
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::winit::window::CursorIcon;
 use paws::{point, vector, AlignH, AlignV, Color, Layout, LineCap, Rect, Renderer};
 
 use crate::backend::Font;

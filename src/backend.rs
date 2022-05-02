@@ -9,6 +9,9 @@ use netcanv_renderer_skia::{self as the_backend, SkiaBackend as TheBackend};
 #[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::{self as the_backend, OpenGlBackend as TheBackend};
 
+#[cfg(feature = "renderer-canvas")]
+use netcanv_renderer_canvas::{self as the_backend, CanvasBackend as TheBackend};
+
 pub use the_backend::winit;
 
 pub type Backend = TheBackend;
