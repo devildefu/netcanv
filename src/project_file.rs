@@ -24,18 +24,16 @@ struct CanvasToml {
 
 pub struct ProjectFile {
    // runtime: Arc<Runtime>,
-
    /// The path to the `.netcanv` directory this paint canvas was saved to.
    filename: Option<PathBuf>,
 }
 
 impl ProjectFile {
    pub fn new() -> Self {
-      todo!()
-      // ProjectFile {
-      //    runtime,
-      //    filename: None,
-      // }
+      ProjectFile {
+         // runtime,
+         filename: None,
+      }
    }
 
    /// Saves the entire paint canvas to a PNG file.
@@ -141,7 +139,7 @@ impl ProjectFile {
       for (chunk_position, chunk) in canvas.chunks_mut() {
          log::debug!("chunk {:?}", chunk_position);
          let image = chunk.download_image();
-         let image_data = ImageCoder::encode_png_data(image).await?;
+         let image_data = ImageCoder::encode_png_data(image)?;
          let filename = format!("{},{}.png", chunk_position.0, chunk_position.1);
          let filepath = path.join(Path::new(&filename));
          log::debug!("saving to {:?}", filepath);

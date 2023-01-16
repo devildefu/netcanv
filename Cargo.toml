@@ -82,7 +82,7 @@ arboard = "2.0.1"
 native-dialog = "0.5.5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.78"
+wasm-bindgen = "0.2.83"
 gloo-storage = "0.2.0"
 gloo-file = "0.2.0"
 console_log = "0.2.0"

@@ -5,6 +5,7 @@
 .vscode
 *.trace
 web/node_modules
+web/pkg
 
 appimage/out
 appimage/linuxdeploy-*
