@@ -99,36 +99,37 @@ impl UserConfig {
    /// If the `config.toml` doesn't exist, it's created with values inherited from
    /// `UserConfig::default`.
    fn load_or_create() -> netcanv::Result<Self> {
-      let config_dir = Self::config_dir();
-      let config_file = Self::path();
-      log::info!("loading config from {:?}", config_file);
-      std::fs::create_dir_all(config_dir)?;
-      if !config_file.is_file() {
-         let config = Self::default();
-         config.save()?;
-         Ok(config)
-      } else {
-         let file = std::fs::read_to_string(&config_file)?;
-         let config: Self = match toml::from_str(&file) {
-            Ok(config) => config,
-            Err(error) => {
-               log::error!("error while deserializing config file: {}", error);
-               log::error!("falling back to default config");
-               return Ok(Self::default());
-            }
-         };
-         // Preemptively save the config to the disk if any new keys have been added.
-         // I'm not sure if errors should be treated as fatal or not in this case.
-         config.save()?;
-         Ok(config)
-      }
+      // let config_dir = Self::config_dir();
+      // let config_file = Self::path();
+      // log::info!("loading config from {:?}", config_file);
+      // std::fs::create_dir_all(config_dir)?;
+      // if !config_file.is_file() {
+      //    let config = Self::default();
+      //    config.save()?;
+      //    Ok(config)
+      // } else {
+      //    let file = std::fs::read_to_string(&config_file)?;
+      //    let config: Self = match toml::from_str(&file) {
+      //       Ok(config) => config,
+      //       Err(error) => {
+      //          log::error!("error while deserializing config file: {}", error);
+      //          log::error!("falling back to default config");
+      //          return Ok(Self::default());
+      //       }
+      //    };
+      //    // Preemptively save the config to the disk if any new keys have been added.
+      //    // I'm not sure if errors should be treated as fatal or not in this case.
+      //    config.save()?;
+      //    Ok(config)
+      // }
+      Ok(Self::default())
    }
 
    /// Saves the user configuration to the `config.toml` file.
    fn save(&self) -> netcanv::Result<()> {
       // Assumes that `config_dir` was already created in `load_or_create`.
-      let config_file = Self::path();
-      std::fs::write(config_file, toml::to_string(self)?)?;
+      // let config_file = Self::path();
+      // std::fs::write(&config_file, toml::to_string(self)?)?;
       Ok(())
    }
 }

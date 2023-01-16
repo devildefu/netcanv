@@ -54,6 +54,7 @@ use crate::config::WindowConfig;
 use crate::ui::view::{self, View};
 use backend::Backend;
 use log::LevelFilter;
+#[cfg(not(target_arch = "wasm32"))]
 use native_dialog::{MessageDialog, MessageType};
 use netcanv_i18n::translate_enum::TranslateEnum;
 use netcanv_i18n::{Formatted, Language};
@@ -99,13 +100,13 @@ pub use errors::*;
 ///
 /// `language` is populated with the user's language once that's loaded. The language is then used
 /// for displaying crash messages.
-fn inner_main(language: &mut Option<Language>) -> errors::Result<()> {
+fn main(language: &mut Option<Language>) -> errors::Result<()> {
    // Set up logging.
-   SimpleLogger::new().with_level(LevelFilter::Debug).env().init().map_err(|e| {
-      Error::CouldNotInitializeLogger {
-         error: e.to_string(),
-      }
-   })?;
+   // SimpleLogger::new().with_level(LevelFilter::Debug).env().init().map_err(|e| {
+   //    Error::CouldNotInitializeLogger {
+   //       error: e.to_string(),
+   //    }
+   // })?;
    log::info!("NetCanv {} - welcome!", env!("CARGO_PKG_VERSION"));
 
    // Load user configuration.
@@ -250,6 +251,7 @@ fn inner_main(language: &mut Option<Language>) -> errors::Result<()> {
    });
 }
 
+/*
 fn main() {
    let default_panic_hook = std::panic::take_hook();
    std::panic::set_hook(Box::new(move |panic_info| {
@@ -294,6 +296,32 @@ fn main() {
             .set_type(MessageType::Error)
             .show_alert()
             .unwrap();
+      }
+   }
+   todo!()
+}
+*/
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+   use wasm_bindgen::prelude::*;
+
+   pub fn set_panic_hook() {
+      console_error_panic_hook::set_once();
+   }
+
+   #[wasm_bindgen]
+   pub fn start() {
+      use log::Level;
+      console_log::init_with_level(Level::Debug).expect("Failed to initialize logger");
+      set_panic_hook();
+
+      let mut language = None;
+
+      if let Err(e) = super::main(&mut language) {
+         let window = web_sys::window().unwrap();
+         let error = format!("{:?}", e);
+         window.alert_with_message(&error).unwrap();
       }
    }
 }

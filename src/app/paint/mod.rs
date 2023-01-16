@@ -16,8 +16,11 @@ use netcanv_renderer::paws::{
 };
 use netcanv_renderer::{BlendMode, Font, RenderBackend};
 use nysa::global as bus;
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
+
+// use tokio::runtime::Runtime;
+// use tokio::sync::mpsc;
+
+use futures::channel::mpsc;
 
 use crate::app::paint::actions::ActionArgs;
 use crate::app::paint::tool_bar::ToolbarArgs;
@@ -85,7 +88,7 @@ struct EncodeChannels {
 pub struct State {
    assets: Assets,
    _socket_system: Arc<SocketSystem>,
-   runtime: Arc<Runtime>,
+   // runtime: Arc<Runtime>,
    project_file: ProjectFile,
 
    paint_canvas: PaintCanvas,
@@ -154,15 +157,16 @@ impl State {
       image_path: Option<PathBuf>,
       renderer: &mut Backend,
    ) -> Result<Self, (netcanv::Error, Assets)> {
-      let runtime = tokio::runtime::Builder::new_multi_thread()
-         .max_blocking_threads(16)
-         .enable_all()
-         .build()
-         .expect("Cannot start async compute runtime");
-      let runtime = Arc::new(runtime);
+      // let runtime = tokio::runtime::Builder::new_multi_thread()
+      //    .max_blocking_threads(16)
+      //    .enable_all()
+      //    .build()
+      //    .expect("Cannot start async compute runtime");
+      // let runtime = Arc::new(runtime);
 
       // Set up decoding supervisor thread.
-      let (xcoder, channels) = ImageCoder::new(Arc::clone(&runtime));
+      // let (xcoder, channels) = ImageCoder::new(Arc::clone(&runtime));
+      let (xcoder, channels) = ImageCoder::new();
 
       let mut wm = WindowManager::new();
       let mut this = Self {
@@ -173,9 +177,9 @@ impl State {
          xcoder,
          xcoder_channels: channels,
          cache_layer: CacheLayer::new(),
-         project_file: ProjectFile::new(Arc::clone(&runtime)),
-         runtime,
-
+         // project_file: ProjectFile::new(Arc::clone(&runtime)),
+         project_file: ProjectFile::new(),
+         // runtime,
          actions: Vec::new(),
 
          peer,
@@ -226,8 +230,7 @@ impl State {
 
    /// Registers all the tools.
    fn register_tools(&mut self, renderer: &mut Backend) {
-      let _selection =
-         self.toolbar.add_tool(SelectionTool::new(renderer, Arc::clone(&self.runtime)));
+      let _selection = self.toolbar.add_tool(SelectionTool::new(renderer));
       let brush = self.toolbar.add_tool(BrushTool::new(renderer));
       let _eyedropper = self.toolbar.add_tool(EyedropperTool::new(renderer));
 
@@ -504,7 +507,7 @@ impl State {
 
             let mut bytes_in_packet = 0;
             let mut packet = Vec::new();
-            while let Ok((chunk_position, images)) = rx.try_recv() {
+            while let Ok(Some((chunk_position, images))) = rx.try_next() {
                let image_data = match images {
                   CachedChunk {
                      png: _,
@@ -867,7 +870,7 @@ impl State {
          .encoded_chunks
          .entry(requester)
          .or_insert_with(|| {
-            let (tx, rx) = mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::unbounded();
             EncodeChannels { tx, rx }
          })
          .tx;

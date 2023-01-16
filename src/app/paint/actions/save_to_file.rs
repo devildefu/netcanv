@@ -2,6 +2,7 @@
 
 use instant::{Duration, Instant};
 
+#[cfg(not(target_arch = "wasm32"))]
 use native_dialog::FileDialog;
 
 use crate::assets::Assets;
@@ -43,15 +44,20 @@ impl Action for SaveToFileAction {
          ..
       }: ActionArgs,
    ) -> netcanv::Result<()> {
-      match FileDialog::new()
-         .add_filter(&assets.tr.fd_png_file, &["png"])
-         .add_filter(&assets.tr.fd_netcanv_canvas, &["netcanv", "toml"])
-         .show_save_single_file()
+      #[cfg(not(target_arch = "wasm32"))]
       {
-         Ok(Some(path)) => project_file.save(Some(&path), paint_canvas)?,
-         Ok(None) => (),
-         Err(error) => return Err(error.into()),
+         match FileDialog::new()
+            .add_filter(&assets.tr.fd_png_file, &["png"])
+            .add_filter(&assets.tr.fd_netcanv_canvas, &["netcanv", "toml"])
+            .show_save_single_file()
+         {
+            Ok(Some(path)) => project_file.save(Some(&path), paint_canvas)?,
+            Ok(None) => (),
+            Err(error) => return Err(error.into()),
+         }
       }
+      #[cfg(target_arch = "wasm32")]
+      todo!();
       Ok(())
    }
 

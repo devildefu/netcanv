@@ -5,7 +5,9 @@ use std::sync::Arc;
 use netcanv_protocol::relay::{PeerId, RoomId};
 use netcanv_protocol::{client as cl, relay};
 use nysa::global as bus;
-use tokio::sync::oneshot;
+
+// use tokio::sync::oneshot;
+use futures::channel::oneshot;
 
 use super::socket::{Socket, SocketSystem};
 use crate::common::{deserialize_bincode, serialize_bincode, Fatal};
@@ -158,7 +160,7 @@ impl Peer {
    /// Checks the message bus for any established connections.
    fn poll_for_new_connections(&mut self) -> netcanv::Result<()> {
       if let State::WaitingForRelay(socket) = &mut self.state {
-         if let Ok(socket) = socket.try_recv() {
+         if let Ok(Some(socket)) = socket.try_recv() {
             let socket = catch!(socket, as Fatal, return Ok(()));
             self.connected_to_relay(socket)?;
          }

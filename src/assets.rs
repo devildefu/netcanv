@@ -80,15 +80,14 @@ pub fn open_license_page() -> netcanv::Result<()> {
       let (_, path) = license_file.keep().map_err(|e| Error::FailedToPersistTemporaryFile {
          error: e.to_string(),
       })?;
-      let url = Url::from_file_path(path)
-         .expect("license page path wasn't absolute and couldn't be turned into a URL");
-      webbrowser::open(url.as_ref()).map_err(|_| Error::CouldNotOpenWebBrowser)?;
+      // let url = Url::from_file_path(path)
+      //    .expect("license page path wasn't absolute and couldn't be turned into a URL");
+      // webbrowser::open(url.as_ref()).map_err(|_| Error::CouldNotOpenWebBrowser)?;
       Ok(())
    } else {
       Err(Error::NoLicensingInformationAvailable)
    }
 }
-
 /// Icons for navigation.
 pub struct NavigationIcons {
    pub menu: Image,

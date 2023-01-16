@@ -3,8 +3,11 @@ use instant::Instant;
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
-use tokio::sync::{mpsc, oneshot};
+
+// use tokio::runtime::Runtime;
+// use tokio::sync::{mpsc, oneshot};
+use futures::channel::{mpsc, oneshot};
+use futures::SinkExt;
 
 use crate::backend::winit::event::MouseButton;
 use crate::backend::winit::window::CursorIcon;
@@ -81,7 +84,6 @@ pub struct SelectionTool {
    selection: Selection,
    peer_selections: HashMap<PeerId, PeerSelection>,
 
-   runtime: Arc<Runtime>,
    paste: Option<(
       Point,
       oneshot::Receiver<RgbaImage>,
@@ -98,8 +100,8 @@ impl SelectionTool {
    /// The radius of handles for resizing the selection contents.
    const HANDLE_RADIUS: f32 = 4.0;
 
-   pub fn new(renderer: &mut Backend, runtime: Arc<Runtime>) -> Self {
-      let (peer_pastes_tx, peer_pastes_rx) = mpsc::unbounded_channel();
+   pub fn new(renderer: &mut Backend) -> Self {
+      let (peer_pastes_tx, peer_pastes_rx) = mpsc::unbounded();
       Self {
          icons: Icons {
             tool: Assets::load_svg(
@@ -125,7 +127,6 @@ impl SelectionTool {
          selection: Selection::new(),
          peer_selections: HashMap::new(),
 
-         runtime,
          paste: None,
          peer_pastes_tx,
          peer_pastes_rx,
@@ -211,27 +212,25 @@ impl SelectionTool {
       let (image_tx, image_rx) = oneshot::channel();
       let (bytes_tx, bytes_rx) = oneshot::channel();
       self.paste = Some((position, image_rx, bytes_rx));
-      self.runtime.spawn_blocking(|| {
-         log::debug!("reading image from clipboard");
-         let image = catch!(clipboard::paste_image());
-         let image = if image.width() > Selection::MAX_SIZE || image.height() > Selection::MAX_SIZE
-         {
-            log::debug!("image is too big! scaling down");
-            let scale = Selection::MAX_SIZE as f32 / image.width().max(image.height()) as f32;
-            let new_width = (image.width() as f32 * scale) as u32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image::imageops::resize(&image, new_width, new_height, FilterType::Triangle)
-         } else {
-            image
-         };
-         // The result here doesn't matter. If the image doesn't arrive, we're out of the
-         // paint state.
-         let _ = image_tx.send(image.clone());
-         log::debug!("encoding image for transmission");
-         let bytes = catch!(Self::encode_image(&image));
-         log::debug!("paste job done; encoded {} bytes", bytes.len());
-         let _ = bytes_tx.send(bytes);
-      });
+
+      log::debug!("reading image from clipboard");
+      let image = catch!(clipboard::paste_image());
+      let image = if image.width() > Selection::MAX_SIZE || image.height() > Selection::MAX_SIZE {
+         log::debug!("image is too big! scaling down");
+         let scale = Selection::MAX_SIZE as f32 / image.width().max(image.height()) as f32;
+         let new_width = (image.width() as f32 * scale) as u32;
+         let new_height = (image.height() as f32 * scale) as u32;
+         image::imageops::resize(&image, new_width, new_height, FilterType::Triangle)
+      } else {
+         image
+      };
+      // The result here doesn't matter. If the image doesn't arrive, we're out of the
+      // paint state.
+      let _ = image_tx.send(image.clone());
+      log::debug!("encoding image for transmission");
+      let bytes = catch!(Self::encode_image(&image));
+      log::debug!("paste job done; encoded {} bytes", bytes.len());
+      let _ = bytes_tx.send(bytes);
    }
 
    /// Polls whether the paste operation is complete. Returns `true` when the tool should be
@@ -243,12 +242,12 @@ impl SelectionTool {
       net: &Net,
    ) -> bool {
       if let Some((position, image, bytes)) = self.paste.as_mut() {
-         if let Ok(image) = image.try_recv() {
+         if let Ok(Some(image)) = image.try_recv() {
             self.selection.deselect(renderer, paint_canvas);
             self.selection.paste(renderer, Some(*position), &image);
             return true;
          }
-         if let Ok(bytes) = bytes.try_recv() {
+         if let Ok(Some(bytes)) = bytes.try_recv() {
             let Point { x, y } = *position;
             catch!(
                net.send(self, PeerId::BROADCAST, Packet::Paste((x, y), bytes)),
@@ -265,7 +264,7 @@ impl SelectionTool {
    }
 
    fn poll_peer_pastes(&mut self, renderer: &mut Backend, paint_canvas: &mut PaintCanvas) {
-      while let Ok((peer_id, image)) = self.peer_pastes_rx.try_recv() {
+      while let Ok(Some((peer_id, image))) = self.peer_pastes_rx.try_next() {
          let peer = self.ensure_peer(peer_id);
          let deselected_before_decoding_finished = peer.selection.rect.is_none();
          if !deselected_before_decoding_finished {
@@ -672,9 +671,9 @@ impl Tool for SelectionTool {
             // ↑ (x, y) is only here for compatibility with 0.7.0 and is no longer used
             // because it caused a data race
             log::debug!("{} pasted image ({} bytes of data)", sender, data.len());
-            let tx = self.peer_pastes_tx.clone();
+            let mut tx = self.peer_pastes_tx.clone();
             self.ongoing_paste_jobs.insert(sender);
-            self.runtime.spawn_blocking(move || match Self::decode_image(&data) {
+            match Self::decode_image(&data) {
                Ok(image) => {
                   let _ = tx.send((sender, Some(image)));
                }
@@ -682,7 +681,7 @@ impl Tool for SelectionTool {
                   log::error!("could not decode selection image: {:?}", error);
                   let _ = tx.send((sender, None));
                }
-            });
+            }
          }
          Packet::Update(data) => peer.selection.upload_rgba(renderer, &Self::decode_image(&data)?),
       }

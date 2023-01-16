@@ -4,6 +4,7 @@
 *.swp
 .vscode
 *.trace
+node_modules
 
 appimage/out
 appimage/linuxdeploy-*

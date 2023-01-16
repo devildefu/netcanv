@@ -3,8 +3,12 @@ use std::num::{IntErrorKind, ParseIntError};
 use image::ImageError;
 use netcanv_i18n::{Formatted, TranslateEnum};
 use netcanv_protocol::relay;
+
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{broadcast, mpsc};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::task::JoinError;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_tungstenite::tungstenite;
 
 /// An error.
@@ -138,18 +142,22 @@ macro_rules! error_from {
 }
 
 error_from!(std::io::Error, Error::Io);
-error_from!(ImageError, Error::Image);
-error_from!(JoinError, Error::Join);
+// error_from!(JoinError, Error::Join);
 error_from!(toml::de::Error, Error::TomlParse);
 error_from!(toml::ser::Error, Error::TomlSerialization);
+error_from!(ImageError, Error::Image);
+
+#[cfg(not(target_arch = "wasm32"))]
 error_from!(tungstenite::Error, Error::WebSocket);
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<T> From<mpsc::error::SendError<T>> for Error {
    fn from(_: mpsc::error::SendError<T>) -> Self {
       Self::ChannelSend
    }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<T> From<broadcast::error::SendError<T>> for Error {
    fn from(_: broadcast::error::SendError<T>) -> Self {
       Self::ChannelSend
@@ -169,6 +177,7 @@ impl From<ParseIntError> for Error {
    }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<arboard::Error> for Error {
    fn from(error: arboard::Error) -> Self {
       match error {
@@ -181,6 +190,7 @@ impl From<arboard::Error> for Error {
    }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<native_dialog::Error> for Error {
    fn from(error: native_dialog::Error) -> Self {
       match error {

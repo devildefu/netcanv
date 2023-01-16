@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use image::{GenericImage, GenericImageView, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
 
 use crate::backend::Backend;
 use crate::image_coder::ImageCoder;
@@ -23,18 +23,19 @@ struct CanvasToml {
 }
 
 pub struct ProjectFile {
-   runtime: Arc<Runtime>,
+   // runtime: Arc<Runtime>,
 
    /// The path to the `.netcanv` directory this paint canvas was saved to.
    filename: Option<PathBuf>,
 }
 
 impl ProjectFile {
-   pub fn new(runtime: Arc<Runtime>) -> Self {
-      ProjectFile {
-         runtime,
-         filename: None,
-      }
+   pub fn new() -> Self {
+      todo!()
+      // ProjectFile {
+      //    runtime,
+      //    filename: None,
+      // }
    }
 
    /// Saves the entire paint canvas to a PNG file.
@@ -163,8 +164,9 @@ impl ProjectFile {
          match ext.to_str() {
             Some("png") => self.save_as_png(&path, canvas),
             Some("netcanv") | Some("toml") => {
-               let runtime = Arc::clone(&self.runtime);
-               runtime.block_on(async { self.save_as_netcanv(&path, canvas).await })
+               todo!()
+               // let runtime = Arc::clone(&self.runtime);
+               // runtime.block_on(async { self.save_as_netcanv(&path, canvas).await })
             }
             _ => Err(Error::UnsupportedSaveFormat),
          }

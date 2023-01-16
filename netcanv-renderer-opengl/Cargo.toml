@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.40"
 winit = { version = "0.27.4", features = ["serde"] }
-glutin = "0.29.1"
 glow = "0.11.2"
 memoffset = "0.6.4"
 swash = "0.1.8"
@@ -14,3 +13,10 @@ smallvec = { version = "1.7.0", features = ["const_generics"] }
 glam = "0.19.0"
 
 netcanv-renderer = { path = "../netcanv-renderer" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+glutin = "0.29.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.78"
+web-sys = { version = "0.3.55", features = ["HtmlCanvasElement", "WebGl2RenderingContext", "Window"] }
