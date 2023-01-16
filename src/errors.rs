@@ -150,6 +150,13 @@ error_from!(ImageError, Error::Image);
 #[cfg(not(target_arch = "wasm32"))]
 error_from!(tungstenite::Error, Error::WebSocket);
 
+#[cfg(target_arch = "wasm32")]
+impl<T> From<futures::channel::mpsc::TrySendError<T>> for Error {
+   fn from(_: futures::channel::mpsc::TrySendError<T>) -> Self {
+      Self::ChannelSend
+   }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl<T> From<mpsc::error::SendError<T>> for Error {
    fn from(_: mpsc::error::SendError<T>) -> Self {

@@ -15,10 +15,10 @@ use super::{ButtonState, Input, Ui};
 
 use crate::backend::winit::event::MouseButton;
 use netcanv_renderer::paws::Layout;
-#[cfg(feature = "renderer-opengl")]
-use netcanv_renderer_opengl::winit::window::CursorIcon;
 #[cfg(feature = "renderer-canvas")]
 use netcanv_renderer_canvas::winit::window::CursorIcon;
+#[cfg(feature = "renderer-opengl")]
+use netcanv_renderer_opengl::winit::window::CursorIcon;
 pub use windows::WindowContentWrappers;
 
 /// A window.

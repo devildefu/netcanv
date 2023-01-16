@@ -62,11 +62,8 @@ impl netcanv_renderer::Framebuffer for Framebuffer {
    fn download_rgba(&self, (x, y): (u32, u32), (width, height): (u32, u32), dest: &mut [u8]) {
       let mut context = self.context.take();
 
-      let image_data = context
-         .as_mut()
-         .unwrap()
-         .get_image_data(x as _, y as _, width as _, height as _)
-         .unwrap();
+      let image_data =
+         context.as_mut().unwrap().get_image_data(x as _, y as _, width as _, height as _).unwrap();
 
       let data = image_data.data().0;
 
