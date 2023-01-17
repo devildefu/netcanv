@@ -154,7 +154,7 @@ impl State {
       assets: Assets,
       socket_system: Arc<SocketSystem>,
       peer: Peer,
-      image_path: Option<PathBuf>,
+      image_file: Option<SelectedFile>,
       renderer: &mut Backend,
    ) -> Result<Self, (netcanv::Error, Assets)> {
       // let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -212,8 +212,8 @@ impl State {
       this.register_tools(renderer);
       this.register_actions(renderer);
 
-      if let Some(path) = image_path {
-         if let Err(error) = this.project_file.load(renderer, &path, &mut this.paint_canvas) {
+      if let Some(file) = image_file {
+         if let Err(error) = this.project_file.load(renderer, &file, &mut this.paint_canvas) {
             return Err((error, this.assets));
          }
       }

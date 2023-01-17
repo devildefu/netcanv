@@ -1,5 +1,7 @@
 //! Various assorted utilities.
 
+use std::path::PathBuf;
+
 use netcanv_renderer::paws::{point, vector, Color, Point, Rect, Vector};
 use netcanv_renderer::Font as FontTrait;
 use serde::de::DeserializeOwned;
@@ -356,4 +358,9 @@ where
    bincode::serialize(input).map_err(|e| netcanv::Error::PacketSerializationFailed {
       error: e.to_string(),
    })
+}
+
+pub struct SelectedFile {
+   pub data: Vec<u8>,
+   pub path: PathBuf
 }

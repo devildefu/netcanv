@@ -4,8 +4,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[cfg(not(target_arch = "wasm32"))]
-use native_dialog::FileDialog;
+use rfd::AsyncFileDialog;
 
 use netcanv_i18n::translate_enum::TranslateEnum;
 use netcanv_protocol::relay::RoomId;
@@ -16,7 +15,7 @@ use nysa::global as bus;
 use crate::app::{paint, AppState, StateArgs};
 use crate::assets::{self, Assets, ColorScheme};
 use crate::backend::Backend;
-use crate::common::{Error, Fatal, StrExt};
+use crate::common::{Error, Fatal, SelectedFile, StrExt};
 use crate::config::{self, config};
 use crate::net::peer::{self, Peer};
 use crate::net::socket::SocketSystem;
@@ -66,7 +65,7 @@ pub struct State {
    // net
    status: Status,
    peer: Option<Peer>,
-   image_file: Option<PathBuf>, // when this is Some, the canvas is loaded from a file
+   image_file: Option<SelectedFile>, // when this is Some, the canvas is loaded from a file
 }
 
 impl State {
@@ -187,6 +186,27 @@ impl State {
    /// Processes the connection menu (nickname and relay fields and two Expands with options
    /// for joining or hosting a room).
    fn process_menu(&mut self, ui: &mut Ui, input: &mut Input) -> Option<Box<dyn AppState>> {
+      macro_rules! host_room {
+         () => {
+            self.status = Status::Info(self.assets.tr.connecting.clone());
+            match Self::host_room(
+               Arc::clone(&self.socket_system),
+               &self.assets.tr,
+               self.nickname_field.text().strip_whitespace(),
+               self.relay_field.text().strip_whitespace(),
+            ) {
+               Ok(peer) => self.peer = Some(peer),
+               Err(status) => self.status = status,
+            }
+         };
+      }
+
+      for message in &bus::retrieve_all::<SelectedFile>() {
+         let file = message.consume();
+         self.image_file = Some(file);
+         host_room!();
+      }
+
       ui.push((ui.width(), ui.remaining_height()), Layout::Vertical);
 
       let button = ButtonArgs::new(ui, &self.assets.colors.button).height(32.0).pill();
@@ -330,21 +350,6 @@ impl State {
          );
          ui.space(16.0);
 
-         macro_rules! host_room {
-            () => {
-               self.status = Status::Info(self.assets.tr.connecting.clone());
-               match Self::host_room(
-                  Arc::clone(&self.socket_system),
-                  &self.assets.tr,
-                  self.nickname_field.text().strip_whitespace(),
-                  self.relay_field.text().strip_whitespace(),
-               ) {
-                  Ok(peer) => self.peer = Some(peer),
-                  Err(status) => self.status = status,
-               }
-            };
-         }
-
          ui.push((ui.remaining_width(), 32.0), Layout::Horizontal);
          if Button::with_text(
             ui,
@@ -367,23 +372,28 @@ impl State {
          )
          .clicked()
          {
-            // match FileDialog::new()
-            //    .set_filename("canvas.png")
-            //    .add_filter(
-            //       &self.assets.tr.fd_supported_image_files,
-            //       &["png", "jpg", "jpeg", "jfif"],
-            //    )
-            //    .add_filter(&self.assets.tr.fd_netcanv_canvas, &["toml"])
-            //    .show_open_single_file()
-            // {
-            //    Ok(Some(path)) => {
-            //       self.image_file = Some(path);
-            //       host_room!();
-            //    }
-            //    Err(error) => self.status = Status::from(error),
-            //    _ => (),
-            // }
-            todo!()
+            {
+               let fd_netcanv_canvas = self.assets.tr.fd_netcanv_canvas.clone();
+               let fd_supported_image_files = self.assets.tr.fd_supported_image_files.clone();
+               wasm_bindgen_futures::spawn_local(async move {
+                  match rfd::AsyncFileDialog::new()
+                     .set_file_name("canvas.png")
+                     .add_filter(
+                        &fd_supported_image_files,
+                        &["png", "jpg", "jpeg", "jfif"],
+                     )
+                     .add_filter(&fd_netcanv_canvas, &["toml"])
+                     .pick_file()
+                     .await
+                  {
+                     Some(file) => {
+                        let data = file.read().await;
+                        bus::push(SelectedFile { data, path: PathBuf::from(file.file_name()) });
+                     }
+                     None => (),
+                  }
+               });
+            }
          }
          ui.pop();
 

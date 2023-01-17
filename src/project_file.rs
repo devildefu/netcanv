@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 // use tokio::runtime::Runtime;
 
 use crate::backend::Backend;
+use crate::common::SelectedFile;
 use crate::image_coder::ImageCoder;
 use crate::paint_canvas::chunk::Chunk;
 use crate::paint_canvas::PaintCanvas;
@@ -186,17 +187,16 @@ impl ProjectFile {
    fn load_from_image_file(
       &mut self,
       renderer: &mut Backend,
-      path: &Path,
+      file: &SelectedFile,
       canvas: &mut PaintCanvas,
    ) -> netcanv::Result<()> {
-      use ::image::io::Reader as ImageReader;
-
-      let image = ImageReader::open(path)?.decode()?.into_rgba8();
+      let image = image::load_from_memory(&file.data)?.into_rgba8();
       log::debug!("image size: {:?}", image.dimensions());
       let chunks_x = (image.width() as f32 / Chunk::SIZE.0 as f32).ceil() as i32;
       let chunks_y = (image.height() as f32 / Chunk::SIZE.1 as f32).ceil() as i32;
       log::debug!("n. chunks: x={}, y={}", chunks_x, chunks_y);
-      let (origin_x, origin_y) = Self::extract_chunk_origin_from_filename(path).unwrap_or((0, 0));
+      let (origin_x, origin_y) =
+         Self::extract_chunk_origin_from_filename(&file.path).unwrap_or((0, 0));
 
       for y in 0..chunks_y {
          for x in 0..chunks_x {
@@ -292,16 +292,16 @@ impl ProjectFile {
    pub fn load(
       &mut self,
       renderer: &mut Backend,
-      path: &Path,
+      file: &SelectedFile,
       canvas: &mut PaintCanvas,
    ) -> netcanv::Result<()> {
-      if let Some(ext) = path.extension() {
+      if let Some(ext) = file.path.extension() {
          match ext.to_str() {
-            Some("netcanv") | Some("toml") => self.load_from_netcanv(renderer, path, canvas),
-            _ => self.load_from_image_file(renderer, path, canvas),
+            Some("netcanv") | Some("toml") => todo!(),
+            _ => self.load_from_image_file(renderer, file, canvas),
          }
       } else {
-         self.load_from_image_file(renderer, path, canvas)
+         self.load_from_image_file(renderer, file, canvas)
       }
    }
 
