@@ -2,9 +2,9 @@ name: Build executables
 
 on:
   push:
-    branches: [master, wasm3]
+    branches: [master]
   pull_request:
-    branches: [master, wasm3]
+    branches: [master]
   release:
     types: [created]
 
