@@ -372,28 +372,27 @@ impl State {
          )
          .clicked()
          {
-            {
-               let fd_netcanv_canvas = self.assets.tr.fd_netcanv_canvas.clone();
-               let fd_supported_image_files = self.assets.tr.fd_supported_image_files.clone();
-               wasm_bindgen_futures::spawn_local(async move {
-                  match rfd::AsyncFileDialog::new()
-                     .set_file_name("canvas.png")
-                     .add_filter(
-                        &fd_supported_image_files,
-                        &["png", "jpg", "jpeg", "jfif"],
-                     )
-                     .add_filter(&fd_netcanv_canvas, &["toml"])
-                     .pick_file()
-                     .await
-                  {
-                     Some(file) => {
-                        let data = file.read().await;
-                        bus::push(SelectedFile { data, path: PathBuf::from(file.file_name()) });
-                     }
-                     None => (),
+            let pick_file = AsyncFileDialog::new()
+               .set_file_name("canvas.png")
+               .add_filter(
+                  &self.assets.tr.fd_supported_image_files,
+                  &["png", "jpg", "jpeg", "jfif"],
+               )
+               .add_filter(&self.assets.tr.fd_netcanv_canvas, &["toml"])
+               .pick_file();
+
+            wasm_bindgen_futures::spawn_local(async move {
+               match pick_file.await {
+                  Some(file) => {
+                     let data = file.read().await;
+                     bus::push(SelectedFile {
+                        data,
+                        path: PathBuf::from(file.file_name()),
+                     });
                   }
-               });
-            }
+                  None => (),
+               }
+            });
          }
          ui.pop();
 
