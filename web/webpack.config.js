@@ -3,14 +3,15 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const WasmPackPlugin = require('@wasm-tool/wasm-pack-plugin');
 
 module.exports = {
-   entry: ['./bootstrap.js', './socket.js'],
+   entry: ['./bootstrap.js', './socket.js', './common.js'],
    output: {
       path: path.resolve(__dirname, 'dist'),
       filename: 'bootstrap.js',
    },
    resolve: {
       alias: {
-         socket$: path.resolve(__dirname, 'socket.js')
+         socket$: path.resolve(__dirname, 'socket.js'),
+         common$: path.resolve(__dirname, 'common.js')
       },
    },
    plugins: [

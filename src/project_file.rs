@@ -37,9 +37,7 @@ impl ProjectFile {
       }
    }
 
-   /// Saves the entire paint canvas to a PNG file.
-   fn save_as_png(&self, path: &Path, canvas: &mut PaintCanvas) -> netcanv::Result<()> {
-      log::info!("saving png {:?}", path);
+   pub fn save_as_png(&self, canvas: &mut PaintCanvas) -> netcanv::Result<RgbaImage> {
       let (mut left, mut top, mut right, mut bottom) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
       for chunk_position in canvas.chunks_mut().keys() {
          left = left.min(chunk_position.0);
@@ -78,9 +76,7 @@ impl ProjectFile {
          );
          sub_image.copy_from(&chunk_image, 0, 0)?;
       }
-      image.save(path)?;
-      log::debug!("image {:?} saved successfully", path);
-      Ok(())
+      Ok(image)
    }
 
    /// Validates the `.netcanv` save path. This strips away the `canvas.toml` if present, and makes
@@ -161,7 +157,7 @@ impl ProjectFile {
          .expect("no save path provided");
       if let Some(ext) = path.extension() {
          match ext.to_str() {
-            Some("png") => self.save_as_png(&path, canvas),
+            Some("png") => todo!(),
             Some("netcanv") | Some("toml") => {
                todo!()
                // let runtime = Arc::clone(&self.runtime);

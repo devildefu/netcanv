@@ -1,9 +1,11 @@
 //! The `Save to file` action.
 
-use instant::{Duration, Instant};
+use std::io::Cursor;
 
-#[cfg(not(target_arch = "wasm32"))]
-use native_dialog::FileDialog;
+use image::ColorType;
+use image::png::PngEncoder;
+use instant::{Duration, Instant};
+use wasm_bindgen::prelude::*;
 
 use crate::assets::Assets;
 use crate::backend::{Backend, Image};
@@ -44,20 +46,15 @@ impl Action for SaveToFileAction {
          ..
       }: ActionArgs,
    ) -> netcanv::Result<()> {
-      #[cfg(not(target_arch = "wasm32"))]
-      {
-         match FileDialog::new()
-            .add_filter(&assets.tr.fd_png_file, &["png"])
-            .add_filter(&assets.tr.fd_netcanv_canvas, &["netcanv", "toml"])
-            .show_save_single_file()
-         {
-            Ok(Some(path)) => project_file.save(Some(&path), paint_canvas)?,
-            Ok(None) => (),
-            Err(error) => return Err(error.into()),
-         }
-      }
-      #[cfg(target_arch = "wasm32")]
-      todo!();
+      let image = project_file.save_as_png(paint_canvas)?;
+      let (width, height) = (image.width(), image.height());
+
+      let mut buf: Vec<u8> = Vec::new();
+      let mut cursor = Cursor::new(&mut buf);
+      let encoder = PngEncoder::new(&mut cursor);
+      encoder.encode(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      show_save_file_picker(buf.as_slice());
+
       Ok(())
    }
 
@@ -78,4 +75,10 @@ impl Action for SaveToFileAction {
       }
       Ok(())
    }
+}
+
+#[wasm_bindgen(raw_module = "common")]
+extern "C" {
+   #[wasm_bindgen(js_name = "showSaveFilePicker")]
+   fn show_save_file_picker(buffer: &[u8]);
 }
