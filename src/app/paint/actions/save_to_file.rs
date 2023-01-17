@@ -2,8 +2,8 @@
 
 use std::io::Cursor;
 
-use image::ColorType;
 use image::png::PngEncoder;
+use image::ColorType;
 use instant::{Duration, Instant};
 use wasm_bindgen::prelude::*;
 

@@ -362,5 +362,5 @@ where
 
 pub struct SelectedFile {
    pub data: Vec<u8>,
-   pub path: PathBuf
+   pub path: PathBuf,
 }

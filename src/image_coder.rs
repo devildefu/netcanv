@@ -21,7 +21,7 @@ pub struct ImageCoder {
    // decoder_quitter: Option<(oneshot::Sender<()>, JoinHandle<()>)>,
    chunks_to_decode_tx: mpsc::UnboundedSender<((i32, i32), Vec<u8>)>,
    encoded_chunks_tx: mpsc::UnboundedSender<((i32, i32), CachedChunk)>,
-   decoded_chunks_tx: mpsc::UnboundedSender<((i32, i32), RgbaImage)>
+   decoded_chunks_tx: mpsc::UnboundedSender<((i32, i32), RgbaImage)>,
 }
 
 impl ImageCoder {
@@ -58,7 +58,7 @@ impl ImageCoder {
          Self {
             chunks_to_decode_tx,
             encoded_chunks_tx,
-            decoded_chunks_tx
+            decoded_chunks_tx,
          },
          ImageCoderChannels {
             decoded_chunks_rx,
@@ -225,7 +225,10 @@ impl ImageCoder {
       match ImageCoder::decode_network_data(&data) {
          Ok(image) => {
             // Doesn't matter if the receiving half is closed.
-            self.decoded_chunks_tx.unbounded_send((to_chunk, image)).expect("Unbounded send failed");
+            self
+               .decoded_chunks_tx
+               .unbounded_send((to_chunk, image))
+               .expect("Unbounded send failed");
          }
          Err(error) => log::error!("image decoding failed: {:?}", error),
       }

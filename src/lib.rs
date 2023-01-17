@@ -40,6 +40,7 @@
 
 // Prevent opening a console on Windows if this is a release build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// #![feature(async_fn_in_trait)]
 
 pub extern crate self as netcanv;
 
