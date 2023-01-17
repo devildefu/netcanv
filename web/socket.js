@@ -15,8 +15,7 @@ export class SocketImpl {
       this.socket.binaryType = "arraybuffer";
       this.socket.onmessage = (event) => {
          let data = new Uint8Array(event.data);
-         console.log("Received:", data);
-         
+
          if (this.isVersionOk === false) {
             if (wasm.checkVersion(data)) {
                console.log("version ok");
@@ -42,7 +41,6 @@ export class SocketImpl {
    }
 
    send(data) {
-      console.log("Sending:", data);
       if (this.isConnected) {
          this.socket.send(typedArrayToBuffer(data));
       } else {
