@@ -22,15 +22,17 @@ export async function askForPermission(name) {
 let clipboardContent = "";
 
 export function init() {
-   setInterval(() => {
-      navigator.clipboard.readText()
-         .then((text) => {
-            clipboardContent = text;
-         })
-         .catch(() => {
-            clipboardContent = "";
-         });
-   }, 1000 / 60);
+   if (navigator.clipboard.readText) {
+      setInterval(() => {
+         navigator.clipboard.readText()
+            .then((text) => {
+               clipboardContent = text;
+            })
+            .catch(() => {
+               clipboardContent = "";
+            });
+      }, 1000 / 60);
+   }
 }
 
 export function copyString(string) {
