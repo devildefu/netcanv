@@ -43,6 +43,6 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: wasm2-pages
-          FOLDER: dist
+          FOLDER: web/dist
           CLEAN: true
           SINGLE_COMMIT: true
