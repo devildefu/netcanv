@@ -9,7 +9,7 @@ pub struct Image {
 
 impl Image {
    pub fn build(&self) -> HtmlImageElement {
-      use image::png::PngEncoder;
+      use image::codecs::png::PngEncoder;
 
       let mut data: Vec<u8> = vec![];
       let encoder = PngEncoder::new(&mut data);

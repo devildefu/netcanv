@@ -1,11 +1,9 @@
 use std::io::Cursor;
 
-use ::image::codecs::png::{PngDecoder, PngEncoder};
-use ::image::{ColorType, ImageDecoder, Rgba, RgbaImage};
-// use tokio::runtime::Runtime;
-// use tokio::sync::{mpsc, oneshot};
-// use tokio::task::JoinHandle;
 use futures::channel::mpsc;
+use image::codecs::png::{PngDecoder, PngEncoder};
+use image::codecs::webp::WebPDecoder;
+use image::{ColorType, ImageDecoder, Rgba, RgbaImage, ImageEncoder};
 
 use crate::paint_canvas::cache_layer::CachedChunk;
 use crate::paint_canvas::chunk::Chunk;
@@ -17,7 +15,6 @@ pub struct ImageCoderChannels {
 }
 
 pub struct ImageCoder {
-   // runtime: Arc<Runtime>,
    // decoder_quitter: Option<(oneshot::Sender<()>, JoinHandle<()>)>,
    chunks_to_decode_tx: mpsc::UnboundedSender<((i32, i32), Vec<u8>)>,
    encoded_chunks_tx: mpsc::UnboundedSender<((i32, i32), CachedChunk)>,
@@ -69,9 +66,8 @@ impl ImageCoder {
 
    /// Encodes an image to PNG data asynchronously.
    pub fn encode_png_data(image: RgbaImage) -> netcanv::Result<Vec<u8>> {
-      // tokio::task::spawn_blocking(move || {
       let mut bytes: Vec<u8> = Vec::new();
-      match PngEncoder::new(Cursor::new(&mut bytes)).encode(
+      match PngEncoder::new(Cursor::new(&mut bytes)).write_image(
          &image,
          image.width(),
          image.height(),
@@ -84,12 +80,10 @@ impl ImageCoder {
          }
       }
       Ok(bytes)
-      // })
-      // .await?
    }
 
    /// Encodes an image to WebP asynchronously.
-   async fn encode_webp_data(image: RgbaImage) -> netcanv::Result<Vec<u8>> {
+   fn encode_webp_data(image: RgbaImage) -> netcanv::Result<Vec<u8>> {
       todo!()
       // Ok(tokio::task::spawn_blocking(move || {
       //    let image = DynamicImage::ImageRgba8(image);
@@ -103,13 +97,12 @@ impl ImageCoder {
    /// large, and returns both images.
    fn encode_network_data(image: RgbaImage) -> netcanv::Result<CachedChunk> {
       let png = Self::encode_png_data(image.clone())?;
-      // let webp = if png.len() > Self::MAX_PNG_SIZE {
-      //    Some(Self::encode_webp_data(image).await?)
-      // } else {
-      //    None
-      // };
-      // Ok(CachedChunk { png, webp })
-      Ok(CachedChunk { png, webp: None })
+      let webp = if png.len() > Self::MAX_PNG_SIZE {
+         Some(Self::encode_webp_data(image)?)
+      } else {
+         None
+      };
+      Ok(CachedChunk { png, webp })
    }
 
    /// Decodes a PNG file into the given sub-chunk.
@@ -126,22 +119,21 @@ impl ImageCoder {
 
    /// Decodes a WebP file into the given sub-chunk.
    fn decode_webp_data(data: &[u8]) -> netcanv::Result<RgbaImage> {
-      // let decoder = webp::Decoder::new(data);
-      // let image = match decoder.decode() {
-      //    Some(image) => image.to_image(),
-      //    None => return Err(Error::InvalidChunkImageFormat),
-      // }
-      // .into_rgba8();
-      // Ok(image)
-      todo!()
+      let decoder = WebPDecoder::new(Cursor::new(data))?;
+      if decoder.color_type() != ColorType::Rgba8 {
+         log::warn!("received non-RGBA image data, ignoring");
+         return Err(Error::NonRgbaChunkImage);
+      }
+      let mut image = RgbaImage::from_pixel(Chunk::SIZE.0, Chunk::SIZE.1, Rgba([0, 0, 0, 0]));
+      decoder.read_image(&mut image)?;
+      Ok(image)
    }
 
    /// Decodes a PNG or WebP file into the given sub-chunk, depending on what's actually stored in
    /// `data`.
    fn decode_network_data(data: &[u8]) -> netcanv::Result<RgbaImage> {
       // Try WebP first.
-      // let image = Self::decode_webp_data(data).or_else(|_| Self::decode_png_data(data))?;
-      let image = Self::decode_png_data(data)?;
+      let image = Self::decode_webp_data(data).or_else(|_| Self::decode_png_data(data))?;
       if image.dimensions() != Chunk::SIZE {
          log::error!(
             "received chunk with invalid size. got: {:?}, expected {:?}",

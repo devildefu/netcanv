@@ -1,6 +1,6 @@
 use gloo_storage::{LocalStorage, Storage};
-use image::png::PngEncoder;
-use image::{load_from_memory_with_format, ColorType, ImageFormat, RgbaImage};
+use image::codecs::png::PngEncoder;
+use image::{load_from_memory_with_format, ColorType, ImageFormat, RgbaImage, ImageEncoder};
 use js_sys::Uint8Array;
 use once_cell::sync::Lazy;
 use std::io::Cursor;
@@ -82,7 +82,7 @@ pub fn copy_image(image: RgbaImage) -> netcanv::Result<()> {
       let mut buf: Vec<u8> = Vec::new();
       let mut cursor = Cursor::new(&mut buf);
       let encoder = PngEncoder::new(&mut cursor);
-      encoder.encode(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      encoder.write_image(&image.into_vec(), width, height, ColorType::Rgba8)?;
       _copy_image(buf.as_slice());
 
       Ok(())

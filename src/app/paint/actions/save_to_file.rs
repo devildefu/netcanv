@@ -2,8 +2,8 @@
 
 use std::io::Cursor;
 
-use image::png::PngEncoder;
-use image::ColorType;
+use image::codecs::png::PngEncoder;
+use image::{ColorType, ImageEncoder};
 use instant::{Duration, Instant};
 use wasm_bindgen::prelude::*;
 
@@ -52,7 +52,7 @@ impl Action for SaveToFileAction {
       let mut buf: Vec<u8> = Vec::new();
       let mut cursor = Cursor::new(&mut buf);
       let encoder = PngEncoder::new(&mut cursor);
-      encoder.encode(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      encoder.write_image(&image.into_vec(), width, height, ColorType::Rgba8)?;
       show_save_file_picker(buf.as_slice());
 
       Ok(())
