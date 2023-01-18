@@ -24,7 +24,8 @@ let clipboardContent = "";
 export function init() {
    if (navigator.clipboard.readText) {
       setInterval(() => {
-         navigator.clipboard.readText()
+         navigator.clipboard
+            .readText()
             .then((text) => {
                clipboardContent = text;
             })
@@ -42,9 +43,7 @@ export function copyString(string: string) {
 export function copyImage(image: Uint8Array) {
    const type = "image/png";
    const blob = new Blob([image], { type });
-   const data = [
-      new ClipboardItem({ [type]: blob })
-   ];
+   const data = [new ClipboardItem({ [type]: blob })];
    navigator.clipboard.write(data);
 }
 
@@ -55,10 +54,10 @@ export function pasteString(): string {
 export async function pasteImage(): Promise<Uint8Array | null> {
    const contents = await navigator.clipboard.read();
    for (const item of contents) {
-      if (!item.types.includes('image/png')) {
-         throw new Error('Clipboard contains non-image data.');
+      if (!item.types.includes("image/png")) {
+         throw new Error("Clipboard contains non-image data.");
       }
-      const blob = await item.getType('image/png');
+      const blob = await item.getType("image/png");
       const buffer = new Uint8Array(await blob.arrayBuffer());
       return buffer;
    }

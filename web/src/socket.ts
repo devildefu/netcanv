@@ -1,7 +1,10 @@
 import * as wasm from "netcanv";
 
 function typedArrayToBuffer(array: Uint8Array) {
-   return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset);
+   return array.buffer.slice(
+      array.byteOffset,
+      array.byteLength + array.byteOffset
+   );
 }
 
 export class SocketImpl {
@@ -56,8 +59,7 @@ export class SocketImpl {
 
    public recv(): ArrayBuffer | null {
       const data = this.recvQueue.shift();
-      if (data === undefined)
-         return null;
+      if (data === undefined) return null;
 
       return data;
    }

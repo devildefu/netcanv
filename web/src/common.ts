@@ -1,7 +1,5 @@
 export function showSaveFilePicker(buffer: Uint8Array) {
-   const url = URL.createObjectURL(
-      new Blob([buffer], { type: "image/png" })
-   );
+   const url = URL.createObjectURL(new Blob([buffer], { type: "image/png" }));
 
    const anchor = document.createElement("a");
    anchor.setAttribute("href", url);

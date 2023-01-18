@@ -1,38 +1,35 @@
 {
-    "env": {
-        "browser": true,
-        "es2021": true
-    },
-    "extends": [
-        "eslint:recommended",
-        "plugin:@typescript-eslint/recommended"
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+  "overrides": [],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "no-duplicate-imports": "error",
+    "camelcase": "warn",
+    "default-case": "error",
+    "eqeqeq": "error",
+    "multiline-comment-style": ["error", "separate-lines"],
+    "no-var": "error",
+    "one-var": ["error", "never"],
+    "prefer-arrow-callback": "error",
+    "prefer-const": ["error", { "destructuring": "all" }],
+    "prefer-template": "warn",
+    "sort-imports": "warn",
+    "spaced-comment": ["warn", "always"],
+    "yoda": "error",
+    "@typescript-eslint/no-explicit-any": ["warn", { "ignoreRestArgs": true }],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
     ],
-    "overrides": [
-    ],
-    "parser": "@typescript-eslint/parser",
-    "parserOptions": {
-        "ecmaVersion": "latest",
-        "sourceType": "module"
-    },
-    "plugins": [
-        "@typescript-eslint"
-    ],
-    "rules": {
-        "no-duplicate-imports": "error",
-        "camelcase": "warn",
-        "default-case": "error",
-        "eqeqeq": "error",
-        "multiline-comment-style": ["error", "separate-lines"],
-        "no-var": "error",
-        "one-var": ["error", "never"],
-        "prefer-arrow-callback": "error",
-        "prefer-const": ["error", {"destructuring": "all"}],
-        "prefer-template": "warn",
-        "sort-imports": "warn",
-        "spaced-comment": ["warn", "always"],
-        "yoda": "error",
-        "@typescript-eslint/no-explicit-any": ["warn", { "ignoreRestArgs": true }],
-        "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
-        "@typescript-eslint/explicit-member-accessibility": "warn"
-    }
+    "@typescript-eslint/explicit-member-accessibility": "warn"
+  }
 }
