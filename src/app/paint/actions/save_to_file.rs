@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::assets::Assets;
 use crate::backend::{Backend, Image};
+use crate::image_coder::ImageCoder;
 
 use super::{Action, ActionArgs};
 
@@ -47,12 +48,7 @@ impl Action for SaveToFileAction {
       }: ActionArgs,
    ) -> netcanv::Result<()> {
       let image = project_file.save_as_png(paint_canvas)?;
-      let (width, height) = (image.width(), image.height());
-
-      let mut buf: Vec<u8> = Vec::new();
-      let mut cursor = Cursor::new(&mut buf);
-      let encoder = PngEncoder::new(&mut cursor);
-      encoder.write_image(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      let buf = ImageCoder::encode_png_data(image)?;
       show_save_file_picker(buf.as_slice());
 
       Ok(())

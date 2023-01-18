@@ -8,6 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use wasm_bindgen::prelude::*;
 
+use crate::image_coder::ImageCoder;
+
 static CLIPBOARD_READ: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
@@ -78,11 +80,7 @@ pub fn copy_string(string: String) -> netcanv::Result<()> {
 
 pub fn copy_image(image: RgbaImage) -> netcanv::Result<()> {
    if CLIPBOARD_WRITE.load(Ordering::Relaxed) {
-      let (width, height) = (image.width(), image.height());
-      let mut buf: Vec<u8> = Vec::new();
-      let mut cursor = Cursor::new(&mut buf);
-      let encoder = PngEncoder::new(&mut cursor);
-      encoder.write_image(&image.into_vec(), width, height, ColorType::Rgba8)?;
+      let buf = ImageCoder::encode_png_data(image)?;
       _copy_image(buf.as_slice());
 
       Ok(())
