@@ -73,7 +73,7 @@ impl Action for SaveToFileAction {
    }
 }
 
-#[wasm_bindgen(raw_module = "common")]
+#[wasm_bindgen(module = "common")]
 extern "C" {
    #[wasm_bindgen(js_name = "showSaveFilePicker")]
    fn show_save_file_picker(buffer: &[u8]);

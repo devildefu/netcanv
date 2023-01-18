@@ -1,4 +1,4 @@
-export async function askForPermission(name) {
+export async function askForPermission(name: PermissionName): Promise<boolean> {
    // On browsers using Blink, permissions are implemented and we should ask for them first,
    // and if the browser has allowed us, we can use the clipboard.
    //
@@ -35,11 +35,11 @@ export function init() {
    }
 }
 
-export function copyString(string) {
+export function copyString(string: string) {
    navigator.clipboard.writeText(string);
 }
 
-export function copyImage(image) {
+export function copyImage(image: Uint8Array) {
    const type = "image/png";
    const blob = new Blob([image], { type });
    const data = [
@@ -48,11 +48,11 @@ export function copyImage(image) {
    navigator.clipboard.write(data);
 }
 
-export function pasteString() {
+export function pasteString(): string {
    return clipboardContent;
 }
 
-export async function pasteImage() {
+export async function pasteImage(): Promise<Uint8Array | null> {
    const contents = await navigator.clipboard.read();
    for (const item of contents) {
       if (!item.types.includes('image/png')) {
@@ -62,4 +62,6 @@ export async function pasteImage() {
       const buffer = new Uint8Array(await blob.arrayBuffer());
       return buffer;
    }
+
+   return null;
 }

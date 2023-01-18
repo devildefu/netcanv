@@ -1,11 +1,17 @@
 import * as wasm from "netcanv";
 
-function typedArrayToBuffer(array) {
-   return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset)
+function typedArrayToBuffer(array: Uint8Array) {
+   return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset);
 }
 
 export class SocketImpl {
-   constructor(address) {
+   sendQueue: ArrayBuffer[];
+   recvQueue: ArrayBuffer[];
+   isConnected: boolean;
+   isVersionOk: boolean;
+   socket: WebSocket;
+
+   public constructor(address: string) {
       this.sendQueue = [];
       this.recvQueue = [];
       this.isConnected = false;
@@ -40,7 +46,7 @@ export class SocketImpl {
       };
    }
 
-   send(data) {
+   public send(data: Uint8Array) {
       if (this.isConnected) {
          this.socket.send(typedArrayToBuffer(data));
       } else {
@@ -48,15 +54,15 @@ export class SocketImpl {
       }
    }
 
-   recv() {
+   public recv(): ArrayBuffer | null {
       let data = this.recvQueue.shift();
       if (data === undefined)
-         return undefined;
+         return null;
 
       return data;
    }
 
-   quit() {
+   public quit() {
       this.socket.close();
    }
 }

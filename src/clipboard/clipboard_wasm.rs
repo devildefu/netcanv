@@ -1,6 +1,6 @@
 use gloo_storage::{LocalStorage, Storage};
 use image::codecs::png::PngEncoder;
-use image::{load_from_memory_with_format, ColorType, ImageFormat, RgbaImage, ImageEncoder};
+use image::{load_from_memory_with_format, ColorType, ImageEncoder, ImageFormat, RgbaImage};
 use js_sys::Uint8Array;
 use once_cell::sync::Lazy;
 use std::io::Cursor;
@@ -13,7 +13,7 @@ use crate::image_coder::ImageCoder;
 static CLIPBOARD_READ: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
-#[wasm_bindgen(raw_module = "clipboard")]
+#[wasm_bindgen(module = "clipboard")]
 extern "C" {
    #[wasm_bindgen(js_name = "askForPermission", catch)]
    async fn _ask_for_permission(name: &str) -> Result<JsValue, JsValue>;

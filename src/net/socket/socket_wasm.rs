@@ -132,7 +132,7 @@ impl SocketQuitter {
    }
 }
 
-#[wasm_bindgen(raw_module = "socket")]
+#[wasm_bindgen(module = "socket")]
 extern "C" {
    type SocketImpl;
 

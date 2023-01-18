@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "module": "es2022",
+    "target": "es5",
+    "moduleResolution": "node",
+    "strict": true
+  }
+}
