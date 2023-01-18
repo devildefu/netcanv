@@ -7,7 +7,7 @@ export async function askForPermission(name: PermissionName): Promise<boolean> {
    // You can force clipboard with the _FORCE_CLIPBOARD entry in local storage. See above.
    if (navigator.permissions) {
       const permission = await navigator.permissions.query({ name });
-      return permission.state == "granted" || permission.state == "prompt";
+      return permission.state === "granted" || permission.state === "prompt";
    } else {
       return false;
    }
