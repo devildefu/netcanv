@@ -11,6 +11,7 @@ memoffset = "0.6.4"
 swash = "0.1.8"
 smallvec = { version = "1.7.0", features = ["const_generics"] }
 glam = "0.19.0"
+log = "0.4.14"
 
 netcanv-renderer = { path = "../netcanv-renderer" }
 

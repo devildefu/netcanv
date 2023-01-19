@@ -1754,6 +1754,7 @@ dependencies = [
  "glam",
  "glow",
  "glutin",
+ "log",
  "memoffset",
  "netcanv-renderer",
  "smallvec",

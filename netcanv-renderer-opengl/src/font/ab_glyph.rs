@@ -65,7 +65,9 @@ impl FontFace {
       if self.sizes.contains_key(&size) {
          return;
       }
-      let Self { gl, face, .. } = &self;
+      let Self {
+         gl, face, ..
+      } = &self;
       let face = face.as_scaled(size as f32);
       let height = face.height() * 1.333;
       let texture = unsafe {
@@ -74,11 +76,11 @@ impl FontFace {
          gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,
-            glow::RED as i32,
+            glow::ALPHA as i32,
             TEXTURE_ATLAS_SIZE as i32,
             TEXTURE_ATLAS_SIZE as i32,
             0,
-            glow::RED,
+            glow::ALPHA,
             glow::UNSIGNED_BYTE,
             None,
          );
@@ -92,8 +94,6 @@ impl FontFace {
             glow::TEXTURE_MAG_FILTER,
             glow::NEAREST as i32,
          );
-         let swizzle_mask = [glow::ONE, glow::ONE, glow::ONE, glow::RED];
-         gl.texture_swizzle_mask(glow::TEXTURE_2D, &swizzle_mask);
          texture
       };
       self.sizes.insert(
@@ -135,7 +135,11 @@ pub struct Font {
 }
 
 impl Font {
-   pub(crate) fn new(gl: Rc<glow::Context>, data: &[u8], default_size: f32) -> Self {
+   pub(crate) fn new(
+      gl: Rc<glow::Context>,
+      data: &[u8],
+      default_size: f32,
+   ) -> Self {
       Self {
          store: Rc::new(RefCell::new(FontFace {
             gl,
@@ -247,7 +251,7 @@ impl<'font, 'store, 'gl> GlyphRenderer<'font, 'store, 'gl> {
                rect.y() as i32,
                rect.width() as i32,
                rect.height() as i32,
-               glow::RED,
+               glow::ALPHA,
                glow::UNSIGNED_BYTE,
                PixelUnpackData::Slice(&bitmap.data),
             );

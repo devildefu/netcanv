@@ -62,6 +62,8 @@ struct Uniforms {
    projection: glow::UniformLocation,
    the_texture: glow::UniformLocation,
    premultiply_alpha: glow::UniformLocation,
+   do_swizzle: Rc<glow::UniformLocation>,
+   swizzle_color: glow::UniformLocation
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -216,12 +218,19 @@ impl RenderState {
 
          uniform sampler2D the_texture;
          uniform float premultiply_alpha;
+         uniform bool do_swizzle;
+         uniform vec3 swizzle_color;
 
          out vec4 fragment_color;
 
          void main(void)
          {
-            vec4 color = vertex_color * texture(the_texture, vertex_uv);
+            vec4 color;
+            if (do_swizzle == false) {
+               color = vertex_color * texture(the_texture, vertex_uv);
+            } else {
+               color = vec4(swizzle_color.r, swizzle_color.g, swizzle_color.b, texture(the_texture, vertex_uv).a);
+            }
             float alpha_factor = premultiply_alpha * color.a + (1.0 - premultiply_alpha);
             color.rgb *= alpha_factor;
             fragment_color = color;
@@ -251,9 +260,12 @@ impl RenderState {
             projection: gl.get_uniform_location(program, "projection").unwrap(),
             the_texture: gl.get_uniform_location(program, "the_texture").unwrap(),
             premultiply_alpha: gl.get_uniform_location(program, "premultiply_alpha").unwrap(),
+            do_swizzle: Rc::new(gl.get_uniform_location(program, "do_swizzle").unwrap()),
+            swizzle_color: gl.get_uniform_location(program, "swizzle_color").unwrap()
          };
          gl.uniform_1_i32(Some(&uniforms.the_texture), 0);
          gl.uniform_1_f32(Some(&uniforms.premultiply_alpha), 0.0);
+         gl.uniform_1_i32(Some(&uniforms.do_swizzle), 0);
 
          (program, uniforms)
       }
@@ -784,8 +796,18 @@ impl Renderer for OpenGlBackend {
          );
       }
 
+      let normalized_color = normalized_color(color);
+      unsafe {
+         self.gl.uniform_3_f32(Some(&self.state.uniforms.swizzle_color), normalized_color.0, normalized_color.1, normalized_color.2);
+         self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 1);
+      }
+
       // Draw 'em.
       self.state.draw();
+
+      unsafe {
+         self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 0);
+      }
       0.0
    }
 }
@@ -800,7 +822,16 @@ impl RenderBackend for OpenGlBackend {
    }
 
    fn create_font_from_memory(&mut self, data: &[u8], default_size: f32) -> Self::Font {
-      Font::new(Rc::clone(&self.gl), data, default_size)
+      #[cfg(not(target_arch = "wasm32"))]
+      return Font::new(
+         Rc::clone(&self.gl),
+         Rc::clone(&self.freetype),
+         data,
+         default_size,
+      );
+
+      #[cfg(target_arch = "wasm32")]
+      return Font::new(Rc::clone(&self.gl), data, default_size);
    }
 
    fn create_framebuffer(&mut self, width: u32, height: u32) -> Self::Framebuffer {
@@ -851,13 +882,13 @@ impl RenderBackend for OpenGlBackend {
       unsafe {
          self.gl.active_texture(glow::TEXTURE0);
          self.gl.bind_texture(glow::TEXTURE_2D, Some(image.texture.texture));
-         let swizzle_mask = if image.color.is_some() {
-            [glow::ONE, glow::ONE, glow::ONE, glow::ALPHA]
-         } else {
-            [glow::RED, glow::GREEN, glow::BLUE, glow::ALPHA]
+         if image.color.is_some() {
+            self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 1);
+            let swizzle_color = normalized_color(color);
+            self.gl.uniform_3_f32(Some(&self.state.uniforms.swizzle_color), swizzle_color.0, swizzle_color.1, swizzle_color.2);
          };
-         self.gl.texture_swizzle_mask(glow::TEXTURE_2D, &swizzle_mask);
          self.state.draw();
+         self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 0);
       }
    }
 
