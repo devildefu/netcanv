@@ -13,7 +13,7 @@ use ab_glyph::{Font as FontTrait, FontVec, ScaleFont};
 use glow::{HasContext, PixelUnpackData};
 use netcanv_renderer::paws::{point, vector, Rect, Vector};
 
-use crate::common::{GlUtilities, RectMath};
+use crate::common::RectMath;
 use crate::rect_packer::RectPacker;
 
 const TEXTURE_ATLAS_SIZE: u32 = 1024;
@@ -69,7 +69,7 @@ impl FontFace {
          gl, face, ..
       } = &self;
       let face = face.as_scaled(size as f32);
-      let height = face.height() * 1.333;
+      let height = face.height();
       let texture = unsafe {
          let texture = gl.create_texture().unwrap();
          gl.bind_texture(glow::TEXTURE_2D, Some(texture));
@@ -217,18 +217,16 @@ impl<'font, 'store, 'gl> GlyphRenderer<'font, 'store, 'gl> {
       let advance_x = render_face.h_advance(glyph_id);
       let bitmap = if let Some(glyph) = render_face.outline_glyph(glyph) {
          let bounds = glyph.px_bounds();
-         let (width, height) = (
-            bounds.width().ceil() as u32 + 1,
-            bounds.height().ceil() as u32 + 1,
-         );
+         let width = bounds.width() as usize;
+         let height = bounds.height() as usize;
          let mut bitmap = Bitmap {
-            width,
-            height,
-            data: vec![0; (width * height) as usize],
+            width: width as u32,
+            height: height as u32,
+            data: vec![0; width * height],
          };
          let (x, y) = (bounds.min.x, bounds.min.y); // face.v_side_bearing(glyph_id));
          glyph.draw(|x, y, coverage| {
-            bitmap.data[(x + y * width) as usize] = (coverage * 255.0) as u8;
+            bitmap.data[(x as usize) + (y as usize) * width] = (coverage * 255.0) as u8;
          });
          Some((bitmap, x, y))
       } else {

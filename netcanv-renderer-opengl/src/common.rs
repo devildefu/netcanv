@@ -1,6 +1,7 @@
 use glam::Vec2;
 use glow::HasContext;
 use netcanv_renderer::paws::{vector, Color, Rect, Vector};
+use winit::dpi::LogicalSize;
 
 pub fn normalized_color(color: Color) -> (f32, f32, f32, f32) {
    (
@@ -79,4 +80,13 @@ pub fn flip_vertically(width: usize, height: usize, channels: usize, data: &mut 
          }
       }
    }
+}
+
+pub fn get_window_size() -> LogicalSize<u32> {
+   let window = web_sys::window().unwrap();
+
+   let width = window.inner_width().unwrap().as_f64().unwrap() as u32;
+   let height = window.inner_height().unwrap().as_f64().unwrap() as u32;
+
+   LogicalSize::new(width, height)
 }

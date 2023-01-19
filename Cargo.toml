@@ -23,7 +23,7 @@ members = [
 ]
 
 [features]
-default = ["renderer-canvas"]
+default = ["renderer-opengl"]
 renderer-opengl = ["netcanv-renderer-opengl"]
 renderer-canvas = ["netcanv-renderer-canvas"]
 

@@ -38,7 +38,7 @@ pub struct OpenGlBackend {
 #[cfg(target_arch = "wasm32")]
 pub struct OpenGlBackend {
    pub(crate) gl: Rc<glow::Context>,
-   window: Window,
+   window: Rc<Window>,
    state: RenderState,
 }
 
@@ -120,15 +120,36 @@ impl OpenGlBackend {
 
    #[cfg(target_arch = "wasm32")]
    pub fn new(window_builder: WindowBuilder, event_loop: &EventLoop<()>) -> anyhow::Result<Self> {
-      use wasm_bindgen::JsCast;
+      use wasm_bindgen::{JsCast, prelude::Closure};
       use winit::platform::web::WindowExtWebSys;
 
-      let winit_window = window_builder.build(&event_loop)?;
-      let canvas = winit_window.canvas();
       let window = web_sys::window().unwrap();
+
+      let winit_window = Rc::new(window_builder.with_inner_size(common::get_window_size()).build(&event_loop)?);
+
+      // Listen to resize event, so we can change canvas size when window size change
+      {
+         let winit_window = Rc::clone(&winit_window);
+         let closure = Closure::wrap(Box::new(move || {
+            winit_window.set_inner_size(common::get_window_size());
+         }) as Box<dyn FnMut()>);
+
+         window
+            .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
+            .unwrap();
+
+         closure.forget();
+      }
+
+      let canvas = winit_window.canvas();
+
+      // Disable right click on canvas
+      let oncontextmenu = Closure::wrap(Box::new(|| false) as Box<dyn FnMut() -> bool>);
+      canvas.set_oncontextmenu(Some(oncontextmenu.as_ref().unchecked_ref()));
+      oncontextmenu.forget();
+
       let document = window.document().unwrap();
       let body = document.body().unwrap();
-
       body.append_child(&canvas).expect("Append canvas to HTML body");
 
       let webgl2_context = canvas
