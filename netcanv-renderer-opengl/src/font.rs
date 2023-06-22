@@ -14,7 +14,7 @@ use swash::shape::ShapeContext;
 use swash::zeno::Format;
 use swash::{CacheKey, FontRef};
 
-use crate::common::{GlUtilities, RectMath};
+use crate::common::RectMath;
 use crate::rect_packer::RectPacker;
 
 const TEXTURE_ATLAS_SIZE: u32 = 1024;
@@ -105,7 +105,9 @@ impl FontFace {
       }
       let gl = &self.gl;
       let swash_font = self.swash_font.as_ref();
-      let shaper = self.shape_context.builder(swash_font).size(size as f32).build();
+      let shaper = self.shape_context.builder(swash_font)
+         .size(size as f32)
+         .build();
       let metrics = shaper.metrics();
       let height = metrics.ascent - metrics.descent;
       let texture = unsafe {
@@ -114,11 +116,11 @@ impl FontFace {
          gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,
-            glow::R8 as i32,
+            glow::ALPHA as i32,
             TEXTURE_ATLAS_SIZE as i32,
             TEXTURE_ATLAS_SIZE as i32,
             0,
-            glow::RED,
+            glow::ALPHA,
             glow::UNSIGNED_BYTE,
             None,
          );
@@ -132,8 +134,6 @@ impl FontFace {
             glow::TEXTURE_MAG_FILTER,
             glow::NEAREST as i32,
          );
-         let swizzle_mask = [glow::ONE, glow::ONE, glow::ONE, glow::RED];
-         gl.texture_swizzle_mask(glow::TEXTURE_2D, &swizzle_mask);
          texture
       };
       self.sizes.insert(
@@ -149,7 +149,7 @@ impl FontFace {
       );
    }
 
-   fn glyph_renderer(&mut self, size: u32) -> GlyphRenderer<'_> {
+   fn glyph_renderer(&mut self, size: u32) -> GlyphRenderer<'_, '_, '_, '_> {
       self.make_size(size);
 
       GlyphRenderer {
@@ -164,7 +164,7 @@ impl FontFace {
 
 impl Drop for FontFace {
    fn drop(&mut self) {
-      for size in self.sizes.values() {
+      for (_, size) in &self.sizes {
          unsafe {
             self.gl.delete_texture(size.texture);
          }
@@ -229,15 +229,15 @@ impl netcanv_renderer::Font for Font {
    }
 }
 
-pub(crate) struct GlyphRenderer<'a> {
-   swash_font: FontRef<'a>,
-   size_store: &'a mut FontSize,
-   gl: &'a glow::Context,
-   scale_context: &'a mut ScaleContext,
-   shape_context: &'a mut ShapeContext,
+pub(crate) struct GlyphRenderer<'font, 'store, 'gl, 'c> {
+   swash_font: FontRef<'font>,
+   size_store: &'store mut FontSize,
+   gl: &'gl glow::Context,
+   scale_context: &'c mut ScaleContext,
+   shape_context: &'c mut ShapeContext,
 }
 
-impl<'a> GlyphRenderer<'a> {
+impl<'font, 'store, 'gl, 'c> GlyphRenderer<'font, 'store, 'gl, 'c> {
    fn render_glyph(&mut self, c: char) -> anyhow::Result<Glyph> {
       let size = self.size_store.size as f32;
       let mut scaler = self.scale_context.builder(self.swash_font).size(size).hint(true).build();
@@ -267,7 +267,7 @@ impl<'a> GlyphRenderer<'a> {
             rect.y() as i32,
             rect.width() as i32,
             rect.height() as i32,
-            glow::RED,
+            glow::ALPHA,
             glow::UNSIGNED_BYTE,
             PixelUnpackData::Slice(&image.data),
          );
@@ -306,7 +306,7 @@ impl<'font, 'text> Typeset<'font, 'text> {
    /// position is calculated, without any of the intermediate glyph positions.
    pub fn fast_forward(mut self) -> f32 {
       let mut renderer = self.store.glyph_renderer(self.font.size);
-      for c in self.text.by_ref() {
+      while let Some(c) = self.text.next() {
          if let Ok(glyph) = renderer.get_or_render_glyph(c) {
             self.pen_x += glyph.advance_x;
          }
@@ -338,3 +338,4 @@ impl<'font, 'text> Iterator for Typeset<'font, 'text> {
       }
    }
 }
+

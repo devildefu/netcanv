@@ -1,6 +1,7 @@
 use std::io::Cursor;
 
 use futures::channel::mpsc;
+use futures::SinkExt;
 use image::codecs::png::{PngDecoder, PngEncoder};
 use image::codecs::webp::WebPDecoder;
 use image::{ColorType, ImageDecoder, Rgba, RgbaImage, ImageEncoder};
@@ -230,8 +231,9 @@ impl ImageCoder {
       //    .expect("Decoding supervisor thread should never quit");
    }
 
-   pub fn send_encoded_chunk(&self, chunk: &CachedChunk, position: (i32, i32)) {
+   pub fn send_encoded_chunk(&self, chunk: &CachedChunk, mut output_channel: mpsc::UnboundedSender<((i32, i32), CachedChunk)>, position: (i32, i32)) {
       let _ = self.encoded_chunks_tx.unbounded_send((position, chunk.to_owned()));
+      let _ = output_channel.send((position, chunk.to_owned()));
    }
 }
 
