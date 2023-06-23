@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use futures::channel::oneshot;
 use netcanv_renderer::Font as FontTrait;
 #[cfg(feature = "renderer-canvas")]
 use netcanv_renderer_canvas::winit::window::CursorIcon;
@@ -23,6 +24,8 @@ pub struct TextField {
 
    blink_start: f32,
    scroll_x: f32,
+
+   paste: Option<oneshot::Receiver<String>>,
 }
 
 /// A text field's color scheme.
@@ -67,6 +70,8 @@ impl TextField {
          },
 
          scroll_x: 0.0,
+
+         paste: None,
       }
    }
 
@@ -87,6 +92,15 @@ impl TextField {
          hint,
       }: TextFieldArgs,
    ) -> TextFieldProcessResult {
+      if let Some(paste) = self.paste.as_mut() {
+         if let Ok(Some(clipboard)) = paste.try_recv() {
+            let clipboard = clipboard.replace('\n', " ");
+            let start = self.selection.start();
+            self.text.replace_range(self.selection.normalize(), &clipboard);
+            self.selection.move_to(TextPosition(start + clipboard.len()));
+         }
+      }
+
       ui.push((width, Self::height(font)), Layout::Freeform);
 
       // Rendering: box
@@ -420,12 +434,14 @@ impl TextField {
          }
 
          if input.action(config().keymap.edit.paste) == (true, true) {
-            if let Ok(clipboard) = clipboard::paste_string() {
-               let clipboard = clipboard.replace('\n', " ");
-               let start = self.selection.start();
-               self.text.replace_range(self.selection.normalize(), &clipboard);
-               self.selection.move_to(TextPosition(start + clipboard.len()));
-            }
+            let (paste_tx, paste_rx) = oneshot::channel();
+            self.paste = Some(paste_rx);
+
+            clipboard::paste_string(|clipboard| {
+               if let Ok(clipboard) = clipboard {
+                  let _ = paste_tx.send(clipboard);
+               }
+            });
          }
 
          if input.action(config().keymap.edit.cut) == (true, true) {

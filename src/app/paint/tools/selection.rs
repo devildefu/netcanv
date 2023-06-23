@@ -15,7 +15,7 @@ use crate::config::config;
 use crate::keymap::KeyBinding;
 use image::codecs::png::PngEncoder;
 use image::io::Reader;
-use image::{ColorType, ImageFormat, RgbaImage, ImageEncoder};
+use image::{ColorType, ImageEncoder, ImageFormat, RgbaImage};
 use netcanv_protocol::relay::PeerId;
 use netcanv_renderer::paws::{point, vector, AlignH, AlignV, Color, Point, Rect, Renderer, Vector};
 use netcanv_renderer::{
@@ -213,26 +213,27 @@ impl SelectionTool {
       let (bytes_tx, bytes_rx) = oneshot::channel();
       self.paste = Some((position, image_rx, bytes_rx));
 
-      wasm_bindgen_futures::spawn_local(async {
-         log::debug!("reading image from clipboard");
-         let image = catch!(clipboard::paste_image().await);
-         let image = if image.width() > Selection::MAX_SIZE || image.height() > Selection::MAX_SIZE
-         {
-            log::debug!("image is too big! scaling down");
-            let scale = Selection::MAX_SIZE as f32 / image.width().max(image.height()) as f32;
-            let new_width = (image.width() as f32 * scale) as u32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image::imageops::resize(&image, new_width, new_height, FilterType::Triangle)
-         } else {
-            image
-         };
-         // The result here doesn't matter. If the image doesn't arrive, we're out of the
-         // paint state.
-         let _ = image_tx.send(image.clone());
-         log::debug!("encoding image for transmission");
-         let bytes = catch!(Self::encode_image(&image));
-         log::debug!("paste job done; encoded {} bytes", bytes.len());
-         let _ = bytes_tx.send(bytes);
+      log::debug!("reading image from clipboard");
+      clipboard::paste_image(|image| {
+         if let Ok(image) = image {
+            let image =
+               if image.width() > Selection::MAX_SIZE || image.height() > Selection::MAX_SIZE {
+                  log::debug!("image is too big! scaling down");
+                  let scale = Selection::MAX_SIZE as f32 / image.width().max(image.height()) as f32;
+                  let new_width = (image.width() as f32 * scale) as u32;
+                  let new_height = (image.height() as f32 * scale) as u32;
+                  image::imageops::resize(&image, new_width, new_height, FilterType::Triangle)
+               } else {
+                  image
+               };
+            // The result here doesn't matter. If the image doesn't arrive, we're out of the
+            // paint state.
+            let _ = image_tx.send(image.clone());
+            log::debug!("encoding image for transmission");
+            let bytes = catch!(Self::encode_image(&image));
+            log::debug!("paste job done; encoded {} bytes", bytes.len());
+            let _ = bytes_tx.send(bytes);
+         }
       });
    }
 

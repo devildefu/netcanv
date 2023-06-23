@@ -13,29 +13,6 @@ export async function askForPermission(name: PermissionName): Promise<boolean> {
    }
 }
 
-// HACK: In normal circumstances, we should read text from clipboard *on demand*,
-// but because text field is synchronous, while readText is not, it is really hard to do it
-// properly. In theory we could make text field asynchronous too, but async fn in trait is
-// still unstable, and doesn't support dyn traits.
-// I tried with callbacks, but rustc was mad about lifetimes, so it didn't work.
-// TODO: Find better solution (unless it is the best possible solution)
-let clipboardContent = "";
-
-export function init() {
-   if (navigator.clipboard.readText) {
-      setInterval(() => {
-         navigator.clipboard
-            .readText()
-            .then((text) => {
-               clipboardContent = text;
-            })
-            .catch(() => {
-               clipboardContent = "";
-            });
-      }, 1000 / 60);
-   }
-}
-
 export function copyString(string: string) {
    navigator.clipboard.writeText(string);
 }
@@ -47,8 +24,9 @@ export function copyImage(image: Uint8Array) {
    navigator.clipboard.write(data);
 }
 
-export function pasteString(): string {
-   return clipboardContent;
+export async function pasteString(): Promise<string> {
+   const content = await navigator.clipboard.readText();
+   return content;
 }
 
 export async function pasteImage(): Promise<Uint8Array | null> {

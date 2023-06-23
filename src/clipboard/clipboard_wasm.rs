@@ -1,9 +1,7 @@
 use gloo_storage::{LocalStorage, Storage};
-use image::codecs::png::PngEncoder;
-use image::{load_from_memory_with_format, ColorType, ImageEncoder, ImageFormat, RgbaImage};
+use image::{load_from_memory_with_format, ImageFormat, RgbaImage};
 use js_sys::Uint8Array;
 use once_cell::sync::Lazy;
-use std::io::Cursor;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use wasm_bindgen::prelude::*;
@@ -18,9 +16,6 @@ extern "C" {
    #[wasm_bindgen(js_name = "askForPermission", catch)]
    async fn _ask_for_permission(name: &str) -> Result<JsValue, JsValue>;
 
-   #[wasm_bindgen(js_name = "init")]
-   fn _init();
-
    #[wasm_bindgen(js_name = "copyString")]
    fn _copy_string(string: &str);
 
@@ -28,7 +23,7 @@ extern "C" {
    fn _copy_image(image: &[u8]);
 
    #[wasm_bindgen(js_name = "pasteString")]
-   fn _paste_string() -> String;
+   async fn _paste_string() -> JsValue;
 
    #[wasm_bindgen(js_name = "pasteImage", catch)]
    async fn _paste_image() -> Result<JsValue, JsValue>;
@@ -62,8 +57,6 @@ pub fn init() -> netcanv::Result<()> {
       CLIPBOARD_WRITE.store(write, Ordering::Relaxed);
    });
 
-   _init();
-
    Ok(())
 }
 
@@ -91,26 +84,37 @@ pub fn copy_image(image: RgbaImage) -> netcanv::Result<()> {
    }
 }
 
-pub fn paste_string() -> netcanv::Result<String> {
-   if CLIPBOARD_READ.load(Ordering::Relaxed) {
-      let string = _paste_string();
-      log::debug!("{}", string);
-      Ok(string)
-   } else {
-      Err(netcanv::Error::ClipboardUnknown {
-         error: "no permissions to paste image from clipboard".to_string(),
-      })
-   }
+pub fn paste_string<F>(func: F)
+where
+   F: FnOnce(netcanv::Result<String>) + 'static,
+{
+   wasm_bindgen_futures::spawn_local(async {
+      if CLIPBOARD_READ.load(Ordering::Relaxed) {
+         let string = _paste_string().await.as_string().unwrap();
+         func(Ok(string));
+      } else {
+         func(Err(netcanv::Error::ClipboardUnknown {
+            error: "no permissions to paste image from clipboard".to_string(),
+         }));
+      }
+   });
 }
 
-pub async fn paste_image() -> netcanv::Result<RgbaImage> {
-   if CLIPBOARD_READ.load(Ordering::Relaxed) {
-      let buffer = _paste_image().await.unwrap();
-      let bytes = Uint8Array::new(&buffer).to_vec();
-      Ok(load_from_memory_with_format(&bytes, ImageFormat::Png)?.to_rgba8())
-   } else {
-      Err(netcanv::Error::ClipboardUnknown {
-         error: "no permissions to paste image from clipboard".to_string(),
-      })
-   }
+pub fn paste_image<F>(func: F)
+where
+   F: FnOnce(netcanv::Result<RgbaImage>) + 'static,
+{
+   wasm_bindgen_futures::spawn_local(async {
+      if CLIPBOARD_READ.load(Ordering::Relaxed) {
+         let buffer = _paste_image().await.unwrap();
+         let bytes = Uint8Array::new(&buffer).to_vec();
+         func(Ok(load_from_memory_with_format(&bytes, ImageFormat::Png)
+            .unwrap()
+            .to_rgba8()));
+      } else {
+         func(Err(netcanv::Error::ClipboardUnknown {
+            error: "no permissions to paste image from clipboard".to_string(),
+         }));
+      }
+   });
 }
