@@ -105,9 +105,7 @@ impl FontFace {
       }
       let gl = &self.gl;
       let swash_font = self.swash_font.as_ref();
-      let shaper = self.shape_context.builder(swash_font)
-         .size(size as f32)
-         .build();
+      let shaper = self.shape_context.builder(swash_font).size(size as f32).build();
       let metrics = shaper.metrics();
       let height = metrics.ascent - metrics.descent;
       let texture = unsafe {
@@ -338,4 +336,3 @@ impl<'font, 'text> Iterator for Typeset<'font, 'text> {
       }
    }
 }
-

@@ -120,12 +120,13 @@ impl OpenGlBackend {
 
    #[cfg(target_arch = "wasm32")]
    pub fn new(window_builder: WindowBuilder, event_loop: &EventLoop<()>) -> anyhow::Result<Self> {
-      use wasm_bindgen::{JsCast, prelude::Closure};
+      use wasm_bindgen::{prelude::Closure, JsCast};
       use winit::platform::web::WindowExtWebSys;
 
       let window = web_sys::window().unwrap();
 
-      let winit_window = Rc::new(window_builder.with_inner_size(common::get_window_size()).build(&event_loop)?);
+      let winit_window =
+         Rc::new(window_builder.with_inner_size(common::get_window_size()).build(&event_loop)?);
 
       // Listen to resize event, so we can change canvas size when window size change
       {

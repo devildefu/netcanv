@@ -63,7 +63,7 @@ struct Uniforms {
    the_texture: glow::UniformLocation,
    premultiply_alpha: glow::UniformLocation,
    do_swizzle: Rc<glow::UniformLocation>,
-   swizzle_color: glow::UniformLocation
+   swizzle_color: glow::UniformLocation,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -261,7 +261,7 @@ impl RenderState {
             the_texture: gl.get_uniform_location(program, "the_texture").unwrap(),
             premultiply_alpha: gl.get_uniform_location(program, "premultiply_alpha").unwrap(),
             do_swizzle: Rc::new(gl.get_uniform_location(program, "do_swizzle").unwrap()),
-            swizzle_color: gl.get_uniform_location(program, "swizzle_color").unwrap()
+            swizzle_color: gl.get_uniform_location(program, "swizzle_color").unwrap(),
          };
          gl.uniform_1_i32(Some(&uniforms.the_texture), 0);
          gl.uniform_1_f32(Some(&uniforms.premultiply_alpha), 0.0);
@@ -798,7 +798,12 @@ impl Renderer for OpenGlBackend {
 
       let normalized_color = normalized_color(color);
       unsafe {
-         self.gl.uniform_3_f32(Some(&self.state.uniforms.swizzle_color), normalized_color.0, normalized_color.1, normalized_color.2);
+         self.gl.uniform_3_f32(
+            Some(&self.state.uniforms.swizzle_color),
+            normalized_color.0,
+            normalized_color.1,
+            normalized_color.2,
+         );
          self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 1);
       }
 
@@ -885,7 +890,12 @@ impl RenderBackend for OpenGlBackend {
          if image.color.is_some() {
             self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 1);
             let swizzle_color = normalized_color(color);
-            self.gl.uniform_3_f32(Some(&self.state.uniforms.swizzle_color), swizzle_color.0, swizzle_color.1, swizzle_color.2);
+            self.gl.uniform_3_f32(
+               Some(&self.state.uniforms.swizzle_color),
+               swizzle_color.0,
+               swizzle_color.1,
+               swizzle_color.2,
+            );
          };
          self.state.draw();
          self.gl.uniform_1_i32(Some(&self.state.uniforms.do_swizzle), 0);
