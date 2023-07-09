@@ -4,6 +4,7 @@ mod actions;
 pub mod tool_bar;
 mod tools;
 
+use image::RgbaImage;
 use instant::{Duration, Instant};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -30,7 +31,7 @@ use crate::assets::*;
 use crate::backend::Backend;
 use crate::clipboard;
 use crate::common::*;
-use crate::image_coder::{ImageCoder, ImageCoderChannels};
+use crate::image_coder::ImageCoder;
 use crate::net::peer::{self, Peer};
 use crate::net::socket::SocketSystem;
 use crate::net::timer::Timer;
@@ -84,6 +85,11 @@ struct EncodeChannels {
    rx: mpsc::UnboundedReceiver<((i32, i32), CachedChunk)>,
 }
 
+struct DecodeChannels {
+   tx: mpsc::UnboundedSender<((i32, i32), RgbaImage)>,
+   rx: mpsc::UnboundedReceiver<((i32, i32), RgbaImage)>,
+}
+
 /// The paint app state.
 pub struct State {
    assets: Assets,
@@ -92,8 +98,6 @@ pub struct State {
    project_file: ProjectFile,
 
    paint_canvas: PaintCanvas,
-   xcoder: ImageCoder,
-   xcoder_channels: ImageCoderChannels,
    cache_layer: CacheLayer,
 
    actions: Vec<Box<dyn actions::Action>>,
@@ -102,6 +106,8 @@ pub struct State {
    update_timer: Timer,
    chunk_downloads: HashMap<(i32, i32), ChunkDownload>,
    encoded_chunks: HashMap<PeerId, EncodeChannels>,
+   encoded_chunks2: EncodeChannels,
+   decoded_chunks: DecodeChannels,
 
    fatal_error: bool,
    log: Log,
@@ -165,27 +171,31 @@ impl State {
       // let runtime = Arc::new(runtime);
 
       // Set up decoding supervisor thread.
-      // let (xcoder, channels) = ImageCoder::new(Arc::clone(&runtime));
-      let (xcoder, channels) = ImageCoder::new();
 
       let mut wm = WindowManager::new();
+      let (encoded_tx, encoded_rx) = mpsc::unbounded();
+      let (decoded_tx, decoded_rx) = mpsc::unbounded();
       let mut this = Self {
          assets,
          _socket_system: socket_system,
 
          paint_canvas: PaintCanvas::new(),
-         xcoder,
-         xcoder_channels: channels,
          cache_layer: CacheLayer::new(),
-         // project_file: ProjectFile::new(Arc::clone(&runtime)),
          project_file: ProjectFile::new(),
-         // runtime,
          actions: Vec::new(),
 
          peer,
          update_timer: Timer::new(Self::TIME_PER_UPDATE),
          chunk_downloads: HashMap::new(),
          encoded_chunks: HashMap::new(),
+         encoded_chunks2: EncodeChannels {
+            tx: encoded_tx,
+            rx: encoded_rx,
+         },
+         decoded_chunks: DecodeChannels {
+            tx: decoded_tx,
+            rx: decoded_rx,
+         },
 
          fatal_error: false,
          log: Log::new(),
@@ -291,7 +301,18 @@ impl State {
 
    /// Decodes canvas data to the given chunk.
    fn decode_canvas_data(&mut self, chunk_position: (i32, i32), image_data: Vec<u8>) {
-      self.xcoder.enqueue_chunk_decoding(chunk_position, image_data);
+      // self.xcoder.enqueue_chunk_decoding(chunk_position, image_data);
+      match ImageCoder::decode_network_data(&image_data) {
+         Ok(image) => {
+            // Doesn't matter if the receiving half is closed.
+            self
+               .decoded_chunks
+               .tx
+               .unbounded_send((chunk_position, image))
+               .expect("Unbounded send failed");
+         }
+         Err(error) => log::error!("image decoding failed: {:?}", error),
+      }
    }
 
    /// Processes the message log.
@@ -415,14 +436,10 @@ impl State {
       // Rendering
       //
 
-      while let Ok(Some((chunk_position, image))) =
-         self.xcoder_channels.decoded_chunks_rx.try_next()
-      {
+      while let Ok(Some((chunk_position, image))) = self.decoded_chunks.rx.try_next() {
          self.paint_canvas.set_chunk(ui, chunk_position, image);
       }
-      while let Ok(Some((chunk_position, image))) =
-         self.xcoder_channels.encoded_chunks_rx.try_next()
-      {
+      while let Ok(Some((chunk_position, image))) = self.encoded_chunks2.rx.try_next() {
          let _ = self.paint_canvas.ensure_chunk(ui, chunk_position);
          self.cache_layer.set_chunk(chunk_position, image);
       }
@@ -885,9 +902,33 @@ impl State {
          );
          // If there is a cached image already, there's no point in encoding it all over again.
          if let Some(chunk) = self.cache_layer.chunk(chunk_position) {
-            self.xcoder.send_encoded_chunk(chunk, tx.clone(), chunk_position);
+            let _ = self.encoded_chunks2.tx.unbounded_send((chunk_position, chunk.to_owned()));
+            let _ = tx.unbounded_send((chunk_position, chunk.to_owned()));
          } else if let Some(chunk) = self.paint_canvas.chunk(chunk_position) {
-            self.xcoder.enqueue_chunk_encoding(chunk, tx.clone(), chunk_position);
+            // If the chunk's image is empty, there's no point in sending it.
+            let image = chunk.download_image();
+            if Chunk::image_is_empty(&image) {
+               return;
+            }
+            // Otherwise, we can start encoding the chunk image.
+
+            log::debug!("encoding image data for chunk {:?}", chunk_position);
+            let image_data = ImageCoder::encode_network_data(image);
+            log::debug!("encoding done for chunk {:?}", chunk_position);
+            match image_data {
+               Ok(data) => {
+                  log::debug!("sending image data back to main thread");
+                  let _ = self.encoded_chunks2.tx.unbounded_send((chunk_position, data.clone()));
+                  let _ = tx.unbounded_send((chunk_position, data));
+               }
+               Err(error) => {
+                  log::error!(
+                     "error while encoding image for chunk {:?}: {:?}",
+                     chunk_position,
+                     error
+                  );
+               }
+            }
          }
       }
    }
