@@ -1,30 +1,27 @@
 //! An abstraction for sockets, communicating over the global bus.
 
 use std::cmp::Ordering;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
+use futures::stream::{SplitSink, SplitStream};
+use futures::{SinkExt, StreamExt};
+use gloo_net::websocket::futures::WebSocket;
+use gloo_net::websocket::{Message, WebSocketError};
 use netcanv_protocol::relay;
-use nysa::global as bus;
 use url::Url;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::common::{deserialize_bincode, serialize_bincode, Fatal};
+use crate::common::{deserialize_bincode, serialize_bincode};
 use crate::Error;
 
 /// Runtime for managing active connections.
-pub struct SocketSystem {
-   quitters: Mutex<Vec<SocketQuitter>>,
-}
+pub struct SocketSystem;
 
 impl SocketSystem {
    /// Starts the socket system.
    pub fn new() -> Arc<Self> {
-      Arc::new(Self {
-         quitters: Mutex::new(Vec::new()),
-      })
+      Arc::new(Self)
    }
 
    /// Resolves the socket addresses the given hostname could refer to.
@@ -40,18 +37,46 @@ impl SocketSystem {
       Ok(url)
    }
 
-   fn connect_inner(self: Arc<Self>, url: String) -> netcanv::Result<Socket> {
+   async fn connect_inner(self: Arc<Self>, url: String) -> netcanv::Result<Socket> {
       let address = Self::resolve_address_with_default_port(&url)?;
-      let socket = Socket::new(address);
+      let ws = WebSocket::open(address.as_str()).unwrap();
+      let (write, mut read) = ws.split();
 
-      // INSERT VERSION CHECK HERE
+      let version = read.next().await.ok_or(Error::NoVersionPacket);
 
-      let mut quitters = self.quitters.lock().unwrap();
-      quitters.push(SocketQuitter {
-         socket: socket.inner(),
+      let version = match version? {
+         Ok(Message::Bytes(version)) => {
+            let array: [u8; 4] = version.try_into().map_err(|_| Error::InvalidVersionPacket)?;
+            u32::from_le_bytes(array)
+         }
+         _ => return Err(Error::InvalidVersionPacket),
+      };
+
+      match version.cmp(&relay::PROTOCOL_VERSION) {
+         Ordering::Equal => (),
+         Ordering::Less => return Err(Error::RelayIsTooOld),
+         Ordering::Greater => return Err(Error::RelayIsTooNew),
+      }
+
+      log::debug!("version ok");
+
+      log::debug!("starting receiver loop");
+      let (recv_tx, recv_rx) = mpsc::unbounded();
+      spawn_local(async move {
+         if let Err(error) = Socket::receiver_loop(read, recv_tx).await {
+            log::error!("receiver loop error: {:?}", error);
+         }
       });
 
-      Ok(socket)
+      log::debug!("starting sender loop");
+      let (send_tx, send_rx) = mpsc::unbounded();
+      spawn_local(async move {
+         if let Err(error) = Socket::sender_loop(write, send_rx).await {
+            log::error!("sender loop error: {:?}", error);
+         }
+      });
+
+      Ok(Socket { recv_rx, send_tx })
    }
 
    /// Initiates a new connection to the relay at the given hostname (IP address or DNS domain).
@@ -60,106 +85,86 @@ impl SocketSystem {
       let (socket_tx, socket_rx) = oneshot::channel();
       let self2 = Arc::clone(&self);
 
-      if socket_tx.send(self2.connect_inner(hostname)).is_err() {
-         panic!("Could not send ready socket to receiver");
-      }
+      spawn_local(async move {
+         if socket_tx.send(self2.connect_inner(hostname).await).is_err() {
+            panic!("Could not send ready socket to receiver");
+         }
+      });
 
       socket_rx
    }
 }
 
-impl Drop for SocketSystem {
-   fn drop(&mut self) {
-      log::info!("cleaning up remaining sockets");
-      let mut handles = self.quitters.lock().unwrap();
-      for handle in handles.drain(..) {
-         handle.quit();
-      }
-   }
-}
-
 pub struct Socket {
-   inner: Rc<SocketImpl>,
+   recv_rx: mpsc::UnboundedReceiver<relay::Packet>,
+   send_tx: mpsc::UnboundedSender<relay::Packet>,
 }
 
 impl Socket {
-   fn new(address: Url) -> Self {
-      Self {
-         inner: Rc::new(SocketImpl::new(address.as_str())),
+   async fn receiver_loop(
+      mut read: SplitStream<WebSocket>,
+      mut output: mpsc::UnboundedSender<relay::Packet>,
+   ) -> netcanv::Result<()> {
+      while let Some(msg) = read.next().await {
+         match msg {
+            Ok(Message::Bytes(data)) => {
+               if data.len() > relay::MAX_PACKET_SIZE as usize {
+                  return Err(Error::ReceivedPacketThatIsTooBig);
+               }
+               let packet = deserialize_bincode(&data)?;
+               output.send(packet).await.unwrap();
+            }
+            Err(e) => match e {
+               WebSocketError::ConnectionClose(_) => return Ok(()),
+               other => {
+                  return Err(Error::WebSocket {
+                     error: other.to_string(),
+                  })
+               }
+            },
+            _ => log::info!("got unused message"),
+         }
       }
+      log::debug!("loop receiver done");
+      Ok(())
    }
 
-   fn inner(&self) -> Rc<SocketImpl> {
-      Rc::clone(&self.inner)
-   }
-
-   /// Sends a packet to the receiving end of the socket.
-   pub fn send(&self, packet: relay::Packet) {
-      let bytes = serialize_bincode(&packet).unwrap();
+   async fn write_packet(
+      write: &mut SplitSink<WebSocket, Message>,
+      packet: relay::Packet,
+   ) -> netcanv::Result<()> {
+      let bytes = serialize_bincode(&packet)?;
       if bytes.len() > relay::MAX_PACKET_SIZE as usize {
-         panic!(
-            "Tried to send packet that is too big, max: {}, size: {}",
-            relay::MAX_PACKET_SIZE,
-            bytes.len()
-         );
+         return Err(Error::TriedToSendPacketThatIsTooBig {
+            max: relay::MAX_PACKET_SIZE as usize,
+            size: bytes.len(),
+         });
       }
-      u32::try_from(bytes.len()).unwrap();
+      u32::try_from(bytes.len()).map_err(|_| Error::TriedToSendPacketThatIsWayTooBig)?;
 
-      self.inner.send(&bytes);
+      write.send(Message::Bytes(bytes)).await.unwrap();
+      Ok(())
    }
 
-   /// Receives packets from the sending end of the socket.
+   async fn sender_loop(
+      mut write: SplitSink<WebSocket, Message>,
+      mut input: mpsc::UnboundedReceiver<relay::Packet>,
+   ) -> netcanv::Result<()> {
+      while let Some(packet) = input.next().await {
+         Self::write_packet(&mut write, packet).await?;
+      }
+      log::debug!("sender loop done");
+      Ok(())
+   }
+
+   pub fn send(&self, packet: relay::Packet) {
+      let mut send_tx = self.send_tx.clone();
+      spawn_local(async move {
+         send_tx.send(packet).await.unwrap();
+      })
+   }
+
    pub fn recv(&mut self) -> Option<relay::Packet> {
-      let data = self.inner.recv()?;
-      log::debug!("{:?}", data);
-
-      if data.len() > relay::MAX_PACKET_SIZE as usize {
-         panic!("Received packet that is too big");
-      }
-
-      let packet = deserialize_bincode(&data).unwrap();
-      Some(packet)
-   }
-}
-
-struct SocketQuitter {
-   socket: Rc<SocketImpl>,
-}
-
-impl SocketQuitter {
-   fn quit(self) {
-      self.socket.quit();
-   }
-}
-
-#[wasm_bindgen(module = "socket")]
-extern "C" {
-   type SocketImpl;
-
-   #[wasm_bindgen(constructor)]
-   fn new(address: &str) -> SocketImpl;
-
-   #[wasm_bindgen(method)]
-   fn send(this: &SocketImpl, data: &[u8]);
-
-   #[wasm_bindgen(method)]
-   fn recv(this: &SocketImpl) -> Option<Box<[u8]>>;
-
-   #[wasm_bindgen(method)]
-   fn quit(this: &SocketImpl);
-}
-
-#[wasm_bindgen(js_name = checkVersion)]
-pub fn check_version(buffer: Box<[u8]>) -> bool {
-   if buffer.len() > 4 {
-      return false;
-   }
-
-   let buffer: [u8; 4] = buffer[0..4].try_into().unwrap();
-   let version = u32::from_le_bytes(buffer);
-
-   match version.cmp(&relay::PROTOCOL_VERSION) {
-      Ordering::Equal => true,
-      Ordering::Less | Ordering::Greater => false,
+      self.recv_rx.try_next().ok().flatten()
    }
 }

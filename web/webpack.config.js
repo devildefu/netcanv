@@ -13,7 +13,6 @@ module.exports = {
    },
    resolve: {
       alias: {
-         socket$: path.resolve(__dirname, "./src/socket.ts"),
          common$: path.resolve(__dirname, "./src/common.ts"),
          clipboard$: path.resolve(__dirname, "./src/clipboard.ts"),
       },
