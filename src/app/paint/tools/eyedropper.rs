@@ -1,6 +1,4 @@
 use netcanv_renderer::paws::{AlignH, AlignV, Color, Layout, Point};
-#[cfg(feature = "renderer-canvas")]
-use netcanv_renderer_canvas::winit::event::MouseButton;
 #[cfg(feature = "renderer-opengl")]
 use netcanv_renderer_opengl::winit::event::MouseButton;
 
