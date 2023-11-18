@@ -1,37 +1,49 @@
 use gloo_storage::{LocalStorage, Storage};
 use image::{load_from_memory_with_format, ImageFormat, RgbaImage};
-use js_sys::Uint8Array;
+use js_sys::{Uint8Array, JsString, Object, Reflect, Array};
 use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicBool, Ordering};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Clipboard, Blob, ClipboardItem};
+use std::{sync::atomic::{AtomicBool, Ordering}, str::FromStr};
 
 use wasm_bindgen::prelude::*;
 
-use crate::image_coder::ImageCoder;
+use crate::{image_coder::ImageCoder, common::get_from_js_value};
 
 static CLIPBOARD_READ: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
-#[wasm_bindgen(module = "clipboard")]
+// `web-sys` doesn't provide `ClipboardItem::new()`, and `ClipboardItem::from()` casts JsValue to
+// ClipboardItem. So we use `wasm-bindgen`'s inline JS feature to create one line wrapper for ClipboardItem
+// constructor, which we will use to call ClipboardItem's constructor
+#[wasm_bindgen(inline_js = "export function new_clipboard_item(data) { return new ClipboardItem(data); }")]
 extern "C" {
-   #[wasm_bindgen(js_name = "askForPermission", catch)]
-   async fn _ask_for_permission(name: &str) -> Result<JsValue, JsValue>;
+   fn new_clipboard_item(data: Object) -> ClipboardItem;
+}
 
-   #[wasm_bindgen(js_name = "copyString")]
-   fn _copy_string(string: &str);
-
-   #[wasm_bindgen(js_name = "copyImage")]
-   fn _copy_image(image: &[u8]);
-
-   #[wasm_bindgen(js_name = "pasteString")]
-   async fn _paste_string() -> JsValue;
-
-   #[wasm_bindgen(js_name = "pasteImage", catch)]
-   async fn _paste_image() -> Result<JsValue, JsValue>;
+fn get_clipboard() -> Option<Clipboard> {
+   web_sys::window()?.navigator().clipboard()
 }
 
 async fn ask_for_permission(name: &str) -> Result<bool, JsValue> {
-   let result = _ask_for_permission(name).await?;
-   Ok(result.as_bool().unwrap())
+   // Create object with property "name", because Permission.query() usage is:
+   // permissions.query({ name: "value" })
+   let name = JsString::from_str(name).unwrap();
+   let object = Object::new();
+   Reflect::set(&object, &JsString::from_str("name").unwrap(), &name)?;
+
+   let window = web_sys::window().unwrap();
+   let navigator = window.navigator();
+
+   if let Ok(permissions) = navigator.permissions() {
+      let promise = permissions.query(&object)?;
+      let permission = JsFuture::from(promise).await?;
+      let state = get_from_js_value(&permission, "state")?.as_string().unwrap();
+
+      Ok(state == "granted" || state == "prompt")
+   } else {
+      Ok(false)
+   }
 }
 
 pub fn init() -> netcanv::Result<()> {
@@ -51,9 +63,11 @@ pub fn init() -> netcanv::Result<()> {
 
    wasm_bindgen_futures::spawn_local(async {
       let read = ask_for_permission("clipboard-read").await.unwrap();
+      log::info!("clipboard-read: {}", read);
       CLIPBOARD_READ.store(read, Ordering::Relaxed);
 
       let write = ask_for_permission("clipboard-write").await.unwrap();
+      log::info!("clipboard-write: {}", write);
       CLIPBOARD_WRITE.store(write, Ordering::Relaxed);
    });
 
@@ -62,7 +76,10 @@ pub fn init() -> netcanv::Result<()> {
 
 pub fn copy_string(string: String) -> netcanv::Result<()> {
    if CLIPBOARD_WRITE.load(Ordering::Relaxed) {
-      _copy_string(&string);
+      wasm_bindgen_futures::spawn_local(async move {
+         let clipboard = get_clipboard().unwrap();
+         JsFuture::from(clipboard.write_text(&string)).await.unwrap();
+      });
       Ok(())
    } else {
       Err(netcanv::Error::ClipboardUnknown {
@@ -73,8 +90,24 @@ pub fn copy_string(string: String) -> netcanv::Result<()> {
 
 pub fn copy_image(image: RgbaImage) -> netcanv::Result<()> {
    if CLIPBOARD_WRITE.load(Ordering::Relaxed) {
+      // Encode image into Blob
       let buf = ImageCoder::encode_png_data(image)?;
-      _copy_image(buf.as_slice());
+      let blob = gloo_file::Blob::new_with_options(buf.as_slice(), Some("image/png"));
+
+      // Create ClipboardItem
+      let item = Object::new();
+      let key = JsString::from_str("image/png").unwrap();
+      let value: &JsValue = blob.as_ref();
+      Reflect::set(&item, &key, value).unwrap();
+      let item = new_clipboard_item(item);
+
+      // Make array from ClipboardItem
+      let data = Array::of1(&item);
+
+      wasm_bindgen_futures::spawn_local(async move {
+         let clipboard = get_clipboard().unwrap();
+         JsFuture::from(clipboard.write(&data)).await.unwrap();
+      });
 
       Ok(())
    } else {
@@ -90,7 +123,10 @@ where
 {
    wasm_bindgen_futures::spawn_local(async {
       if CLIPBOARD_READ.load(Ordering::Relaxed) {
-         let string = _paste_string().await.as_string().unwrap();
+         let clipboard = get_clipboard().unwrap();
+         let content = JsFuture::from(clipboard.read_text()).await.unwrap();
+         let string = content.as_string().unwrap();
+
          func(Ok(string));
       } else {
          func(Err(netcanv::Error::ClipboardUnknown {
@@ -106,11 +142,29 @@ where
 {
    wasm_bindgen_futures::spawn_local(async {
       if CLIPBOARD_READ.load(Ordering::Relaxed) {
-         let buffer = _paste_image().await.unwrap();
-         let bytes = Uint8Array::new(&buffer).to_vec();
-         func(Ok(load_from_memory_with_format(&bytes, ImageFormat::Png)
-            .unwrap()
-            .to_rgba8()));
+         let clipboard = get_clipboard().unwrap();
+
+         let contents = JsFuture::from(clipboard.read()).await.unwrap();
+         let iterator = js_sys::try_iter(&contents).unwrap().unwrap();
+
+         for item in iterator {
+            let item = item.unwrap();
+            let item = JsCast::unchecked_ref::<ClipboardItem>(&item);
+            let types = item.types();
+
+            if let Some(_) = types.iter().find(|x| x == "image/png") {
+               let blob: Blob = JsFuture::from(item.get_type("image/png")).await.unwrap().unchecked_into();
+               let buffer = JsFuture::from(blob.array_buffer()).await.unwrap();
+
+               let bytes = Uint8Array::new(&buffer).to_vec();
+               func(Ok(load_from_memory_with_format(&bytes, ImageFormat::Png)
+                  .unwrap()
+                  .to_rgba8()));
+
+               // We paste only first image
+               break;
+            }
+         }
       } else {
          func(Err(netcanv::Error::ClipboardUnknown {
             error: "no permissions to paste image from clipboard".to_string(),

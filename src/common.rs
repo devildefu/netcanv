@@ -1,11 +1,13 @@
 //! Various assorted utilities.
 
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use netcanv_renderer::paws::{point, vector, Color, Point, Rect, Vector};
 use netcanv_renderer::Font as FontTrait;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use wasm_bindgen::JsValue;
 
 use crate::backend::Font;
 
@@ -363,4 +365,9 @@ where
 pub struct SelectedFile {
    pub data: Vec<u8>,
    pub path: PathBuf,
+}
+
+pub fn get_from_js_value(js_value: &wasm_bindgen::JsValue, key: &str) -> Result<JsValue, JsValue> {
+   let key = js_sys::JsString::from_str(key).unwrap();
+   js_sys::Reflect::get(js_value, &key)
 }

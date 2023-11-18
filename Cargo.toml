@@ -79,7 +79,7 @@ webp = { version = "0.2.0", features = ["img"] }
 arboard = "2.0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.83"
+wasm-bindgen = "0.2.88"
 gloo-storage = "0.2.0"
 gloo-file = "0.2.0"
 gloo-net = "0.4.0"
@@ -89,7 +89,7 @@ js-sys = "0.3.55"
 wasm-bindgen-futures = "0.4.30"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.55"
+version = "0.3.65"
 features = [
    "HtmlCanvasElement",
    "Window",
@@ -111,7 +111,8 @@ features = [
    "Permissions",
    "PermissionState",
    "PermissionStatus",
-   "Clipboard"
+   "Clipboard",
+   "ClipboardItem"
 ]
 
 [profile.release]

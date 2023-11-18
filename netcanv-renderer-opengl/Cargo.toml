@@ -19,5 +19,5 @@ netcanv-renderer = { path = "../netcanv-renderer" }
 glutin = "0.29.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.83"
-web-sys = { version = "0.3.55", features = ["HtmlCanvasElement", "WebGl2RenderingContext", "Window"] }
+wasm-bindgen = "0.2.88"
+web-sys = { version = "0.3.65", features = ["HtmlCanvasElement", "WebGl2RenderingContext", "Window"] }
