@@ -1,9 +1,6 @@
 //! The `Save to file` action.
 
-use std::io::Cursor;
 
-use image::codecs::png::PngEncoder;
-use image::{ColorType, ImageEncoder};
 use instant::{Duration, Instant};
 use wasm_bindgen::prelude::*;
 
@@ -41,7 +38,6 @@ impl Action for SaveToFileAction {
    fn perform(
       &mut self,
       ActionArgs {
-         assets,
          paint_canvas,
          project_file,
          ..
@@ -49,7 +45,15 @@ impl Action for SaveToFileAction {
    ) -> netcanv::Result<()> {
       let image = project_file.save_as_png(paint_canvas)?;
       let buf = ImageCoder::encode_png_data(image)?;
-      show_save_file_picker(buf.as_slice());
+
+      let blob = gloo_file::Blob::new_with_options(buf.as_slice(), Some("image/png"));
+      let url = web_sys::Url::create_object_url_with_blob(&blob.into()).unwrap();
+
+      let document = web_sys::window().unwrap().document().unwrap();
+      let anchor = document.create_element("a").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+      anchor.set_attribute("href", &url).unwrap();
+      anchor.set_attribute("download", "canvas.png").unwrap();
+      anchor.click();
 
       Ok(())
    }
@@ -71,10 +75,4 @@ impl Action for SaveToFileAction {
       }
       Ok(())
    }
-}
-
-#[wasm_bindgen(module = "common")]
-extern "C" {
-   #[wasm_bindgen(js_name = "showSaveFilePicker")]
-   fn show_save_file_picker(buffer: &[u8]);
 }
