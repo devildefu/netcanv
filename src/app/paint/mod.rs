@@ -908,7 +908,7 @@ impl State {
             // If the chunk's image is empty, there's no point in sending it.
             let image = chunk.download_image();
             if Chunk::image_is_empty(&image) {
-               return;
+               continue;
             }
             // Otherwise, we can start encoding the chunk image.
 
