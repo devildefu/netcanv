@@ -693,7 +693,12 @@ impl Tool for SelectionTool {
    }
 
    /// Sends a capture packet to the peer that joined.
-   fn network_peer_join(&mut self, net: Net, peer_id: PeerId) -> netcanv::Result<()> {
+   fn network_peer_join(
+      &mut self,
+      net: Net,
+      peer_id: PeerId,
+      _global_controls: &GlobalControls,
+   ) -> netcanv::Result<()> {
       if let Some(capture) = self.selection.download_rgba() {
          self.send_rect_packet(&net)?;
          net.send(self, peer_id, Packet::Update(Self::encode_image(&capture)?))?;
