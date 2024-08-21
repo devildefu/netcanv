@@ -4,6 +4,9 @@ use std::fmt::{self, Display, Formatter};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "i18n")]
+use netcanv_i18n::Formatted;
+
 /// The default relay port.
 pub const DEFAULT_PORT: u16 = 62137;
 
@@ -149,6 +152,13 @@ impl fmt::Debug for PeerId {
    }
 }
 
+#[cfg(feature = "i18n")]
+impl From<PeerId> for netcanv_i18n::FormatArg<'_> {
+   fn from(value: PeerId) -> Self {
+      Self::Unsigned(value.0)
+   }
+}
+
 /// An error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "i18n", derive(netcanv_i18n::TranslateEnum))]
@@ -164,5 +174,5 @@ pub enum Error {
    /// The room with the given ID does not exist.
    RoomDoesNotExist,
    /// The peer with the given ID doesn't seem to be connected.
-   NoSuchPeer,
+   NoSuchPeer { address: PeerId },
 }
