@@ -1,0 +1,75 @@
+name: Build executables
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  release:
+    types: [created]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-appimage:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+    - name: Compile application
+      run: cargo build --release
+    - name: Compile matchmaker
+      working-directory: netcanv-matchmaker
+      run: cargo build --release
+
+    - name: Build AppImages
+      run: bash build/appimages.sh
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2.2.2
+      with:
+        name: netcanv-nightly-linux
+        path: appimages
+
+  build-exe:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Compile application
+      run: cargo build --release
+    - name: Compile matchmaker
+      working-directory: netcanv-matchmaker
+      run: cargo build --release
+
+    - name: Apply icons to executables
+      run: ./build/windows-icons.ps1
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: netcanv-nightly-windows
+        path: |
+          target/release/netcanv.exe
+          target/release/netcanv-matchmaker.exe
+
+  release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'Release' && github.event.action == 'Created'
+    needs: [build-appimage, build-exe]
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v2
+
+    - name: Upload artifacts as release assets
+      uses: AButler/upload-release-assets@v2.0
+      with:
+        files: "netcanv-nightly-windows/*;netcanv-nightly-linux/*"
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
