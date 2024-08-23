@@ -244,7 +244,7 @@ impl Peer {
                // we are doing here is synchronising our state with relay's state.
                if self.mates.contains_key(&address) {
                   self.remove_mate(address);
-                  tracing::warn!(
+                  log::warn!(
                      "{:?} is no longer in the room, so they got removed",
                      address
                   );
