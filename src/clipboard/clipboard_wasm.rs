@@ -1,14 +1,17 @@
 use gloo_storage::{LocalStorage, Storage};
 use image::{load_from_memory_with_format, ImageFormat, RgbaImage};
-use js_sys::{Uint8Array, JsString, Object, Reflect, Array};
+use js_sys::{Array, JsString, Object, Reflect, Uint8Array};
 use once_cell::sync::Lazy;
+use std::{
+   str::FromStr,
+   sync::atomic::{AtomicBool, Ordering},
+};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Clipboard, Blob, ClipboardItem};
-use std::{sync::atomic::{AtomicBool, Ordering}, str::FromStr};
+use web_sys::{Blob, Clipboard, ClipboardItem};
 
 use wasm_bindgen::prelude::*;
 
-use crate::{image_coder::ImageCoder, common::get_from_js_value};
+use crate::{common::get_from_js_value, image_coder::ImageCoder};
 
 static CLIPBOARD_READ: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -16,7 +19,9 @@ static CLIPBOARD_WRITE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 // `web-sys` doesn't provide `ClipboardItem::new()`, and `ClipboardItem::from()` casts JsValue to
 // ClipboardItem. So we use `wasm-bindgen`'s inline JS feature to create one line wrapper for ClipboardItem
 // constructor, which we will use to call ClipboardItem's constructor
-#[wasm_bindgen(inline_js = "export function new_clipboard_item(data) { return new ClipboardItem(data); }")]
+#[wasm_bindgen(
+   inline_js = "export function new_clipboard_item(data) { return new ClipboardItem(data); }"
+)]
 extern "C" {
    fn new_clipboard_item(data: Object) -> ClipboardItem;
 }
@@ -47,8 +52,6 @@ async fn ask_for_permission(name: &str) -> Result<bool, JsValue> {
 }
 
 pub fn init() -> netcanv::Result<()> {
-   // Clipboard MAY work on firefox/safari, so I'll hide option to force it
-   // in localStorage for now.
    match LocalStorage::get("_FORCE_CLIPBOARD") {
       Ok(v) if v => {
          log::info!("Forced clipboard");
@@ -61,15 +64,20 @@ pub fn init() -> netcanv::Result<()> {
       _ => (),
    }
 
-   wasm_bindgen_futures::spawn_local(async {
-      let read = ask_for_permission("clipboard-read").await.unwrap();
-      log::info!("clipboard-read: {}", read);
-      CLIPBOARD_READ.store(read, Ordering::Relaxed);
+   match LocalStorage::get("_ASK_FOR_PERMISSIONS") {
+      Ok(v) if v => {
+         wasm_bindgen_futures::spawn_local(async {
+            let read = ask_for_permission("clipboard-read").await.unwrap();
+            log::info!("clipboard-read: {}", read);
+            CLIPBOARD_READ.store(read, Ordering::Relaxed);
 
-      let write = ask_for_permission("clipboard-write").await.unwrap();
-      log::info!("clipboard-write: {}", write);
-      CLIPBOARD_WRITE.store(write, Ordering::Relaxed);
-   });
+            let write = ask_for_permission("clipboard-write").await.unwrap();
+            log::info!("clipboard-write: {}", write);
+            CLIPBOARD_WRITE.store(write, Ordering::Relaxed);
+         });
+      }
+      _ => (),
+   }
 
    Ok(())
 }
@@ -153,7 +161,8 @@ where
             let types = item.types();
 
             if let Some(_) = types.iter().find(|x| x == "image/png") {
-               let blob: Blob = JsFuture::from(item.get_type("image/png")).await.unwrap().unchecked_into();
+               let blob: Blob =
+                  JsFuture::from(item.get_type("image/png")).await.unwrap().unchecked_into();
                let buffer = JsFuture::from(blob.array_buffer()).await.unwrap();
 
                let bytes = Uint8Array::new(&buffer).to_vec();
